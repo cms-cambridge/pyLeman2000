@@ -15,7 +15,8 @@ This is a Python port of [`leman2000R`](https://github.com/pmcharrison/leman2000
 
 - Python 3.10+
 - [Docker](https://docker.io/) installed and running
-- On first use, the image `ghcr.io/pmcharrison/leman_2000:latest` will be pulled
+- On first use, a reproducibly pinned
+  `ghcr.io/pmcharrison/leman_2000` image will be pulled
 
 > **Note:** The underlying image targets linux/amd64 (Intel/AMD). It may not work
 > on Apple Silicon without emulation.
@@ -23,7 +24,7 @@ This is a Python port of [`leman2000R`](https://github.com/pmcharrison/leman2000
 ## Installation
 
 ```bash
-pip install git+https://github.com/pmcharrison/pyLeman2000.git
+pip install git+https://github.com/cms-cambridge/pyLeman2000.git
 ```
 
 For local development:
@@ -71,14 +72,17 @@ result.windowed_local_global_comparison
 ```text
    local_decay_sec  global_decay_sec  window_id  window_start  window_end  local_global_correlation
 0              0.1               1.0          1           0.0         0.1                  0.999977
-1              0.1               1.0          2           0.1         0.2                  0.998674
+1              0.5               1.0          1           0.0         0.1                  1.000000
 2              0.1               2.0          1           0.0         0.1                  0.999974
-3              0.1               2.0          2           0.1         0.2                  0.998546
-4              0.5               1.0          1           0.0         0.1                  1.000000
+3              0.5               2.0          1           0.0         0.1                  0.999999
+4              0.1               1.0          2           0.1         0.2                  0.998674
 5              0.5               1.0          2           0.1         0.2                  0.999988
-6              0.5               2.0          1           0.0         0.1                  0.999999
+6              0.1               2.0          2           0.1         0.2                  0.998546
 7              0.5               2.0          2           0.1         0.2                  0.999972
 ```
+
+Window intervals include both endpoints. A timestamp on a boundary shared by
+adjacent windows contributes to both windows.
 
 `leman2000` returns a `Leman2000Result` dataclass with:
 
@@ -89,12 +93,18 @@ result.windowed_local_global_comparison
 
 ## Tests
 
-Requires Docker (including for integration and R-snapshot tests):
+Unit tests do not require Docker:
 
 ```bash
 pip install -e ".[dev]"
-docker pull ghcr.io/pmcharrison/leman_2000:latest
-pytest -v
+pytest -v -m "not integration"
+```
+
+Integration and R-snapshot tests require Docker:
+
+```bash
+docker pull "$(python -c 'from pyleman2000.docker_runner import DEFAULT_IMAGE; print(DEFAULT_IMAGE)')"
+pytest -v -m integration
 ```
 
 Snapshot CSVs under `tests/snapshots/` were generated from
