@@ -28,6 +28,16 @@ def python_result():
     )
 
 
+@pytest.fixture(scope="module")
+def detailed_python_result():
+    return leman2000(
+        input_file=example_wav_path(),
+        local_decay_sec=LOCAL_DECAY,
+        global_decay_sec=GLOBAL_DECAY,
+        keep_auditory_nerve=True,
+    )
+
+
 def test_metadata_matches_r(python_result) -> None:
     expected = pd.read_csv(SNAPSHOT_DIR / "r_hihat_meta.csv").iloc[0]
     assert python_result.audio_length_sec == pytest.approx(
@@ -42,8 +52,6 @@ def test_local_global_comparison_matches_r(python_result) -> None:
     actual = python_result.local_global_comparison
 
     keys = ["local_decay_sec", "global_decay_sec", "time_sec"]
-    expected = expected.sort_values(keys).reset_index(drop=True)
-    actual = actual.sort_values(keys).reset_index(drop=True)
 
     pd.testing.assert_frame_equal(
         actual[keys + ["running_correlation"]],
@@ -63,12 +71,22 @@ def test_windowed_comparison_matches_r(python_result) -> None:
 
     keys = ["local_decay_sec", "global_decay_sec", "window_id"]
     cols = keys + ["window_start", "window_end", "local_global_correlation"]
-    expected = expected.sort_values(keys).reset_index(drop=True)
-    actual = actual.sort_values(keys).reset_index(drop=True)
 
     pd.testing.assert_frame_equal(
         actual[cols],
         expected[cols],
+        check_dtype=False,
+        rtol=1e-12,
+        atol=1e-12,
+    )
+
+
+def test_detail_level_does_not_change_correlations(
+    python_result, detailed_python_result
+) -> None:
+    pd.testing.assert_frame_equal(
+        python_result.local_global_comparison,
+        detailed_python_result.local_global_comparison,
         check_dtype=False,
         rtol=1e-12,
         atol=1e-12,

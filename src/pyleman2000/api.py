@@ -2,13 +2,17 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 
 import docker
 import numpy as np
 
-from pyleman2000.docker_runner import DEFAULT_IMAGE, run_model
+from pyleman2000.docker_runner import (
+    DEFAULT_IMAGE,
+    DEFAULT_TIMEOUT_SEC,
+    run_model,
+)
 from pyleman2000.formatters import (
     format_local_global_comparison,
     window_local_global_comparison,
@@ -24,11 +28,28 @@ def example_wav_path() -> Path:
 def _as_float_sequence(values: float | Sequence[float], name: str) -> list[float]:
     if isinstance(values, (str, bytes)):
         raise TypeError(f"{name} must be a float or sequence of floats")
-    if isinstance(values, Sequence):
-        if len(values) == 0:
-            raise ValueError(f"{name} must not be empty")
-        return [float(v) for v in values]
-    return [float(values)]
+    raw_values = (
+        list(values)
+        if isinstance(values, Sequence | np.ndarray)
+        else [values]
+    )
+    if not raw_values:
+        raise ValueError(f"{name} must not be empty")
+
+    result: list[float] = []
+    for value in raw_values:
+        if isinstance(value, (bool, np.bool_)):
+            raise TypeError(f"{name} must not contain boolean values")
+        try:
+            converted = float(value)
+        except (TypeError, ValueError) as exc:
+            raise TypeError(f"{name} must contain only real numbers") from exc
+        if not np.isfinite(converted):
+            raise ValueError(f"{name} values must be finite")
+        if converted <= 0:
+            raise ValueError(f"{name} values must be positive")
+        result.append(converted)
+    return result
 
 
 def leman2000(
@@ -42,6 +63,7 @@ def leman2000(
     *,
     docker_image: str = DEFAULT_IMAGE,
     docker_client: docker.DockerClient | None = None,
+    docker_timeout_sec: float | None = DEFAULT_TIMEOUT_SEC,
 ) -> Leman2000Result:
     """Run Leman's (2000) tonal contextuality model on a WAV file.
 
@@ -60,8 +82,7 @@ def leman2000(
         Global decay parameter(s) in seconds.
     windows :
         Optional time windows for averaging. Each window is ``(start, end)``
-        in seconds. Averaging uses the half-open interval
-        ``[start, end)``.
+        in seconds. Both endpoints are included.
     windowing_function :
         Reduction used within each window. Defaults to :func:`numpy.mean`.
     keep_auditory_nerve :
@@ -72,6 +93,8 @@ def leman2000(
         Docker image providing the compiled model.
     docker_client :
         Optional Docker SDK client. Useful for testing.
+    docker_timeout_sec :
+        Maximum container runtime in seconds. Set to None for no timeout.
 
     Returns
     -------
@@ -90,13 +113,34 @@ def leman2000(
 
     detail = 5 if (keep_auditory_nerve or keep_periodicity_pitch) else 0
     raw = run_model(
-        path,
-        local_vals,
-        global_vals,
+        input_file=path,
+        local_decay_sec=local_vals,
+        global_decay_sec=global_vals,
         detail=detail,
         image=docker_image,
         client=docker_client,
+        timeout_sec=docker_timeout_sec,
     )
+
+    if not isinstance(raw, Mapping):
+        raise ValueError("Model output must be a JSON object")
+    required = {
+        "audio_length_sec",
+        "num_channels",
+        "sample_rate",
+        "local_global_comparison",
+    }
+    missing = sorted(required.difference(raw))
+    if missing:
+        raise ValueError(
+            "Model output is missing required field(s): " + ", ".join(missing)
+        )
+    for keep, field in (
+        (keep_auditory_nerve, "auditory_nerve"),
+        (keep_periodicity_pitch, "periodicity_pitch"),
+    ):
+        if keep and field not in raw:
+            raise ValueError(f"Model output is missing requested field: {field}")
 
     local_global = format_local_global_comparison(
         raw["local_global_comparison"],

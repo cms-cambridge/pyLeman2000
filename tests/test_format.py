@@ -109,7 +109,15 @@ def test_custom_windowing_function(raw_result: dict) -> None:
         windows=[(0.0, 0.3)],
         windowing_function=np.median,
     )
-    assert windowed["local_global_correlation"].notna().all()
+    first = df[
+        (df["local_decay_sec"] == 0.1)
+        & (df["global_decay_sec"] == 1.0)
+        & (df["time_sec"] >= 0.0)
+        & (df["time_sec"] <= 0.3)
+    ]["running_correlation"]
+    assert windowed.iloc[0]["local_global_correlation"] == pytest.approx(
+        np.median(first)
+    )
 
 
 def test_empty_window_yields_nan(raw_result: dict) -> None:
@@ -119,3 +127,80 @@ def test_empty_window_yields_nan(raw_result: dict) -> None:
     )
     windowed = window_local_global_comparison(df, windows=[(10.0, 11.0)])
     assert windowed["local_global_correlation"].isna().all()
+
+
+def test_windows_are_closed_on_both_ends() -> None:
+    comparison = pd.DataFrame(
+        {
+            "local_decay_sec": [0.1, 0.1, 0.1],
+            "global_decay_sec": [1.0, 1.0, 1.0],
+            "time_sec": [0.0, 0.5, 1.0],
+            "running_correlation": [0.0, 1.0, 0.0],
+        }
+    )
+
+    result = window_local_global_comparison(
+        comparison,
+        windows=[(0.0, 0.5), (0.5, 1.0)],
+    )
+
+    assert result["local_global_correlation"].tolist() == [0.5, 0.5]
+
+
+def test_windowing_uses_existing_pairs_and_r_order() -> None:
+    comparison = pd.DataFrame(
+        {
+            "local_decay_sec": [0.1, 0.1, 0.2, 0.2],
+            "global_decay_sec": [1.0, 1.0, 2.0, 2.0],
+            "time_sec": [0.0, 1.0, 0.0, 1.0],
+            "running_correlation": [0.1, 0.2, 0.3, 0.4],
+        }
+    )
+
+    result = window_local_global_comparison(
+        comparison,
+        windows=[(0.0, 0.4), (0.6, 1.0)],
+    )
+
+    assert list(
+        result[
+            ["local_decay_sec", "global_decay_sec", "window_id"]
+        ].itertuples(index=False, name=None)
+    ) == [
+        (0.1, 1.0, 1),
+        (0.2, 2.0, 1),
+        (0.1, 1.0, 2),
+        (0.2, 2.0, 2),
+    ]
+
+
+def test_empty_windowing_result_preserves_schema() -> None:
+    comparison = format_local_global_comparison([], 1.0)
+
+    result = window_local_global_comparison(comparison, [(0.0, 1.0)])
+
+    assert list(result.columns) == [
+        "local_decay_sec",
+        "global_decay_sec",
+        "window_id",
+        "window_start",
+        "window_end",
+        "local_global_correlation",
+    ]
+    assert result.empty
+
+
+@pytest.mark.parametrize(
+    "windows, match",
+    [
+        ([], "at least one"),
+        ([(0.0,)], "length 2"),
+        ([(1.0, 0.0)], "greater than or equal"),
+        ([(0.0, np.inf)], "finite"),
+    ],
+)
+def test_invalid_windows_are_rejected(windows, match: str) -> None:
+    comparison = format_local_global_comparison([], 1.0)
+
+    with pytest.raises(ValueError, match=match):
+        window_local_global_comparison(comparison, windows)
