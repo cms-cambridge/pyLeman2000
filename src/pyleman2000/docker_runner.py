@@ -87,6 +87,8 @@ def run_model(
         If Docker is unavailable or the container exits unsuccessfully.
     """
     input_file = Path(input_file).resolve()
+    if not input_file.is_file():
+        raise FileNotFoundError(f"Input file not found: {input_file}")
     if timeout_sec is not None:
         timeout_sec = float(timeout_sec)
         if not math.isfinite(timeout_sec) or timeout_sec <= 0:

@@ -1,7 +1,9 @@
-Snapshot source: leman2000R 0.1.0
+Generated: not regenerated in this environment
+leman2000R: 0.1.0
 Source revision: 6067bfdfad2a5ce4910790cf6f7f2e64a7d7837b
 Docker image: ghcr.io/pmcharrison/leman_2000@sha256:08d5ce84b9844954473832af65188f8f56fdfc8bcc3c64e0307e532a062e2442
 
 The original generation environment was not recorded. Regenerating with
 scripts/generate_r_snapshots.R replaces this file with the exact timestamp,
-package version, image digest, R version, and platform session information.
+package version, source revision, image digest, R version, and platform
+session information.

@@ -31,17 +31,55 @@ if (
   stop("Could not tag pinned Docker image for leman2000R")
 }
 
+package_path <- find.package("leman2000R")
+source_revision <- system2(
+  "git",
+  c("-C", package_path, "rev-parse", "HEAD"),
+  stdout = TRUE,
+  stderr = FALSE
+)
+if (
+  !is.null(attr(source_revision, "status")) &&
+    attr(source_revision, "status") != 0
+) {
+  source_revision <- "unavailable"
+} else {
+  source_revision <- source_revision[[1]]
+}
+
 write_csv_atomic <- function(value, filename) {
   destination <- file.path(out_dir, filename)
   temporary <- tempfile(pattern = paste0(filename, "-"), tmpdir = out_dir)
-  on.exit(unlink(temporary), add = TRUE)
   write.csv(value, temporary, row.names = FALSE)
+  on.exit({
+    if (!is.null(temporary) && file.exists(temporary)) {
+      unlink(temporary)
+    }
+  }, add = TRUE)
+
+  if (file.rename(temporary, destination)) {
+    temporary <- NULL
+    return(invisible(destination))
+  }
+
+  backup <- NULL
   if (file.exists(destination)) {
-    unlink(destination)
+    backup <- paste0(destination, ".bak")
+    if (!file.rename(destination, backup)) {
+      stop("Could not back up existing snapshot: ", destination)
+    }
   }
   if (!file.rename(temporary, destination)) {
+    if (!is.null(backup) && file.exists(backup)) {
+      file.rename(backup, destination)
+    }
     stop("Could not replace snapshot: ", destination)
   }
+  temporary <- NULL
+  if (!is.null(backup)) {
+    unlink(backup)
+  }
+  invisible(destination)
 }
 
 res <- leman2000(
@@ -98,6 +136,7 @@ writeLines(
   c(
     paste("Generated:", format(Sys.time(), tz = "UTC", usetz = TRUE)),
     paste("leman2000R:", as.character(packageVersion("leman2000R"))),
+    paste("Source revision:", source_revision),
     paste("Docker image:", docker_image),
     "",
     capture.output(sessionInfo())

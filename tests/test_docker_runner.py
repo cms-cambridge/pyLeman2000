@@ -177,3 +177,88 @@ def test_run_model_wraps_invalid_json() -> None:
             global_decay_sec=[1.0],
             client=client,
         )
+
+
+def test_run_model_rejects_missing_input(tmp_path: Path) -> None:
+    with pytest.raises(FileNotFoundError, match="Input file not found"):
+        run_model(
+            tmp_path / "missing.wav",
+            local_decay_sec=[0.1],
+            global_decay_sec=[1.0],
+            client=MagicMock(),
+        )
+
+
+def test_run_model_wraps_pull_failures() -> None:
+    client = MagicMock()
+    client.images.get.side_effect = ImageNotFound("missing")
+    client.images.pull.side_effect = APIError("pull denied")
+
+    with pytest.raises(Leman2000DockerError, match="Failed to pull"):
+        run_model(
+            example_wav_path(),
+            local_decay_sec=[0.1],
+            global_decay_sec=[1.0],
+            client=client,
+        )
+
+
+def test_run_model_requires_output_file() -> None:
+    client = MagicMock()
+    client.images.get.return_value = MagicMock()
+    container = client.containers.run.return_value
+    container.wait.return_value = {"StatusCode": 0}
+
+    with pytest.raises(Leman2000DockerError, match="output file was not created"):
+        run_model(
+            example_wav_path(),
+            local_decay_sec=[0.1],
+            global_decay_sec=[1.0],
+            client=client,
+        )
+
+
+def test_run_model_rejects_invalid_timeout() -> None:
+    with pytest.raises(ValueError, match="timeout_sec"):
+        run_model(
+            example_wav_path(),
+            local_decay_sec=[0.1],
+            global_decay_sec=[1.0],
+            timeout_sec=0,
+            client=MagicMock(),
+        )
+
+
+def test_run_model_allows_unlimited_timeout() -> None:
+    payload = {
+        "audio_length_sec": 0.1,
+        "num_channels": 1,
+        "sample_rate": 44100,
+        "local_global_comparison": [],
+    }
+    client = MagicMock()
+    client.images.get.return_value = MagicMock()
+    container = client.containers.run.return_value
+    container.wait.return_value = {"StatusCode": 0}
+
+    def write_output(*, command, volumes, **kwargs):
+        output_dir = next(
+            Path(host)
+            for host, config in volumes.items()
+            if config["bind"] == OUTPUT_MOUNT
+        )
+        (output_dir / Path(command[1]).name).write_text(json.dumps(payload))
+        return container
+
+    client.containers.run.side_effect = write_output
+
+    result = run_model(
+        example_wav_path(),
+        local_decay_sec=[0.1],
+        global_decay_sec=[1.0],
+        timeout_sec=None,
+        client=client,
+    )
+
+    assert result == payload
+    container.wait.assert_called_once_with()
