@@ -79,9 +79,14 @@ class Leman2000Result:
         ``window_id``, ``window_start``, ``window_end``,
         ``local_global_correlation``.
     auditory_nerve :
-        Auditory nerve simulation outputs, if requested.
+        Auditory nerve simulation outputs, if requested. These are nested
+        dictionaries from the MATLAB binary (commonly including keys such as
+        ``images``, ``sample_freq``, and ``filter_freqs``) and can be large.
     periodicity_pitch :
-        Periodicity pitch outputs, if requested.
+        Periodicity pitch outputs, if requested. These are nested dictionaries
+        from the MATLAB binary (commonly including keys such as ``signal``,
+        ``sample_freq``, ``pitch_periods``, and
+        ``filtered_auditory_nerve_images``) and can be large.
     """
 
     audio_length_sec: float
@@ -110,6 +115,27 @@ class Leman2000Result:
             self,
             "periodicity_pitch",
             deepcopy(self.periodicity_pitch),
+        )
+
+    def __repr__(self) -> str:
+        """Return a compact summary that avoids dumping large payloads."""
+        windowed = self.windowed_local_global_comparison
+        windowed_summary = (
+            "None"
+            if windowed is None
+            else f"DataFrame(shape={tuple(windowed.shape)})"
+        )
+        return (
+            "Leman2000Result("
+            f"audio_length_sec={self.audio_length_sec!r}, "
+            f"num_channels={self.num_channels!r}, "
+            f"sample_rate={self.sample_rate!r}, "
+            "local_global_comparison="
+            f"DataFrame(shape={tuple(self.local_global_comparison.shape)}), "
+            f"windowed_local_global_comparison={windowed_summary}, "
+            f"auditory_nerve={'set' if self.auditory_nerve is not None else None}, "
+            "periodicity_pitch="
+            f"{'set' if self.periodicity_pitch is not None else None})"
         )
 
     def __eq__(self, other: object) -> bool:

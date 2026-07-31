@@ -194,7 +194,7 @@ def test_run_model_wraps_pull_failures() -> None:
     client.images.get.side_effect = ImageNotFound("missing")
     client.images.pull.side_effect = APIError("pull denied")
 
-    with pytest.raises(Leman2000DockerError, match="Failed to pull"):
+    with pytest.raises(Leman2000DockerError, match="about 1 GB"):
         run_model(
             example_wav_path(),
             local_decay_sec=[0.1],

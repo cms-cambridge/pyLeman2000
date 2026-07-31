@@ -179,6 +179,61 @@ def test_requested_detail_must_be_present(
         )
 
 
+def test_invalid_windows_are_rejected_before_docker(tmp_path: Path) -> None:
+    wav = tmp_path / "tone.wav"
+    wav.write_bytes(b"RIFF")
+
+    with (
+        patch("pyleman2000.api.run_model") as run_model,
+        pytest.raises(ValueError, match="greater than or equal"),
+    ):
+        leman2000(
+            wav,
+            local_decay_sec=0.1,
+            global_decay_sec=1.0,
+            windows=[(1.0, 0.0)],
+        )
+
+    run_model.assert_not_called()
+
+
+def test_empty_windows_are_rejected_before_docker(tmp_path: Path) -> None:
+    wav = tmp_path / "tone.wav"
+    wav.write_bytes(b"RIFF")
+
+    with (
+        patch("pyleman2000.api.run_model") as run_model,
+        pytest.raises(ValueError, match="at least one"),
+    ):
+        leman2000(
+            wav,
+            local_decay_sec=0.1,
+            global_decay_sec=1.0,
+            windows=[],
+        )
+
+    run_model.assert_not_called()
+
+
+def test_rejects_non_callable_windowing_function(tmp_path: Path) -> None:
+    wav = tmp_path / "tone.wav"
+    wav.write_bytes(b"RIFF")
+
+    with (
+        patch("pyleman2000.api.run_model") as run_model,
+        pytest.raises(TypeError, match="windowing_function"),
+    ):
+        leman2000(
+            wav,
+            local_decay_sec=0.1,
+            global_decay_sec=1.0,
+            windows=[(0.0, 0.1)],
+            windowing_function="mean",  # type: ignore[arg-type]
+        )
+
+    run_model.assert_not_called()
+
+
 def test_rejects_non_wav(tmp_path: Path) -> None:
     path = tmp_path / "tone.txt"
     path.write_text("nope")

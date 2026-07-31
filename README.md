@@ -2,36 +2,68 @@
 
 Python wrapper for Leman's (2000) tonal contextuality model.
 
-The original model was published in a 2000 Music Perception paper, and was shown
-to provide a psychoacoustic account of the Krumhansl-Kessler probe-tone data.
-Leman and colleagues released this model as part of the IPEM Toolbox, which now
-only runs on old MATLAB versions. This package wraps the compiled implementation
-in Docker (via the [Docker SDK for Python](https://docker-py.readthedocs.io/))
-for cross-platform use.
+The original model was published in a 2000 *Music Perception* paper, and was
+shown to provide a psychoacoustic account of the Krumhansl-Kessler probe-tone
+data (Leman, 2000). Leman and colleagues released this model as part of the
+IPEM Toolbox, which now only runs on old MATLAB versions. This package wraps
+the compiled implementation in Docker (via the
+[Docker SDK for Python](https://docker-py.readthedocs.io/)) for cross-platform
+use.
 
 This is a Python port of [`leman2000R`](https://github.com/pmcharrison/leman2000R).
 
 ## Requirements
 
 - Python 3.10+
-- [Docker](https://docker.io/) installed and running
-- On first use, a reproducibly pinned
-  `ghcr.io/pmcharrison/leman_2000` image will be pulled
+- [Docker](https://docs.docker.com/get-docker/) installed and running
+  (`docker info` should succeed)
+- On first use, a reproducibly pinned `ghcr.io/pmcharrison/leman_2000` image is
+  pulled (~1 GB compressed). That first pull can take several minutes and may
+  look stalled if progress is not shown.
 
-> **Note:** The underlying image targets linux/amd64 (Intel/AMD). It may not work
-> on Apple Silicon without emulation.
+> **Note:** The underlying image targets `linux/amd64`. On Apple Silicon, enable
+> Docker Desktop's amd64/Rosetta or QEMU emulation, then verify with
+> `docker run --platform=linux/amd64 --rm hello-world`. Emulated runs are
+> slower than native amd64 hardware.
 
 ## Installation
 
 ```bash
-pip install git+https://github.com/cms-cambridge/pyLeman2000.git
+python3 -m pip install git+https://github.com/cms-cambridge/pyLeman2000.git
 ```
 
 For local development:
 
 ```bash
-pip install -e ".[dev]"
+python3 -m pip install -e ".[dev]"
 ```
+
+Optional: pre-pull the pinned model image before your first analysis:
+
+```bash
+docker pull "$(python3 -c 'from pyleman2000.docker_runner import DEFAULT_IMAGE; print(DEFAULT_IMAGE)')"
+```
+
+## Choosing parameters
+
+There is not much clarity in the literature on which local/global decay
+parameters are best. Previous work has therefore grid-searched many
+combinations, which is what this package facilitates: pass sequences for
+`local_decay_sec` and `global_decay_sec` to obtain all pairwise results. See
+Bigand et al. (2014) for an example of using Leman's model across parameter
+settings when relating auditory short-term memory accounts to musical syntax
+findings.
+
+`local_global_comparison` gives the running correlation between local and
+global tonal images over time. Higher values mean the short-term (local) and
+longer-term (global) representations are more similar at that moment. Optional
+`windows` summarise those correlations over closed time intervals of interest
+(for example chord or phrase spans).
+
+Input files must use a `.wav` extension. The Dockerised binary inherits the
+IPEM/MATLAB WAV constraints of the original toolbox; if a file fails inside
+the container, try a standard PCM WAV (for example mono or stereo, 16-bit,
+44.1 kHz).
 
 ## Example
 
@@ -82,7 +114,9 @@ result.windowed_local_global_comparison
 ```
 
 Window intervals include both endpoints. A timestamp on a boundary shared by
-adjacent windows contributes to both windows.
+adjacent windows contributes to both windows. `window_id` is 1-based, and
+windowed rows are ordered window-major (all parameter combinations for window
+1, then window 2, and so on).
 
 `leman2000` returns a `Leman2000Result` dataclass with:
 
@@ -90,23 +124,39 @@ adjacent windows contributes to both windows.
 - `local_global_comparison` — pandas DataFrame of running local/global correlations
 - `windowed_local_global_comparison` — optional windowed averages
 - `auditory_nerve` / `periodicity_pitch` — optional heavy intermediate outputs
+  (nested dictionaries from the MATLAB binary; omit unless you need them)
+
+The result object itself is frozen (attribute reassignment is blocked), but
+embedded DataFrames remain mutable through pandas APIs. Constructor inputs are
+copied so later edits to caller-owned objects do not alter the result.
 
 ## Tests
 
 Unit tests do not require Docker:
 
 ```bash
-pip install -e ".[dev]"
-pytest -v -m "not integration"
+python3 -m pip install -e ".[dev]"
+python3 -m pytest -v -m "not integration"
 ```
 
 Integration and R-snapshot tests require Docker:
 
 ```bash
-docker pull "$(python -c 'from pyleman2000.docker_runner import DEFAULT_IMAGE; print(DEFAULT_IMAGE)')"
-pytest -v -m integration
+docker pull "$(python3 -c 'from pyleman2000.docker_runner import DEFAULT_IMAGE; print(DEFAULT_IMAGE)')"
+python3 -m pytest -v -m integration
 ```
 
 Snapshot CSVs under `tests/snapshots/` were generated from
 [`leman2000R`](https://github.com/pmcharrison/leman2000R) via
 `scripts/generate_r_snapshots.R`.
+
+## References
+
+Bigand, E., Delbé, C., Poulin-Charronnat, B., Leman, M., & Tillmann, B. (2014).
+Empirical evidence for musical syntax processing? Computer simulations reveal
+the contribution of auditory short-term memory.
+*Frontiers in Systems Neuroscience, 8*, 94.
+https://doi.org/10.3389/fnsys.2014.00094
+
+Leman, M. (2000). An auditory model of the role of short-term memory in probe-tone
+ratings. *Music Perception, 17*(4), 481–509.

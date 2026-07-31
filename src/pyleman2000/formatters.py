@@ -64,6 +64,44 @@ def normalize_local_global_comparison(
     )
 
 
+def validate_windows(
+    windows: Sequence[Sequence[float]],
+) -> list[tuple[float, float]]:
+    """Validate and normalize window ``(start, end)`` pairs.
+
+    Parameters
+    ----------
+    windows :
+        Sequence of ``(start_sec, end_sec)`` pairs.
+
+    Returns
+    -------
+    list of tuple
+        Finite ``(start, end)`` pairs with ``end >= start``.
+    """
+    if len(windows) == 0:
+        raise ValueError("windows must contain at least one (start, end) pair")
+
+    validated: list[tuple[float, float]] = []
+    for window in windows:
+        if len(window) != 2:
+            raise ValueError(
+                f"Each window must have length 2, got {window!r}"
+            )
+        start, end = float(window[0]), float(window[1])
+        if not np.isfinite(start) or not np.isfinite(end):
+            raise ValueError(
+                f"window boundaries must be finite, got ({start}, {end})"
+            )
+        if end < start:
+            raise ValueError(
+                "window_end must be greater than or equal to window_start, "
+                f"got ({start}, {end})"
+            )
+        validated.append((start, end))
+    return validated
+
+
 def format_local_global_comparison(
     local_global_comparison: Any,
     audio_length_sec: float,
@@ -137,28 +175,14 @@ def window_local_global_comparison(
     Returns
     -------
     pandas.DataFrame
-        One row per decay-parameter pair and window.
+        One row per decay-parameter pair and window. Rows are ordered
+        window-major (``window_id`` slowest to change within each window
+        block of parameter pairs). ``window_id`` is 1-based.
     """
-    if len(windows) == 0:
-        raise ValueError("windows must contain at least one (start, end) pair")
+    if not callable(windowing_function):
+        raise TypeError("windowing_function must be callable")
 
-    validated: list[tuple[float, float]] = []
-    for window in windows:
-        if len(window) != 2:
-            raise ValueError(
-                f"Each window must have length 2, got {window!r}"
-            )
-        start, end = float(window[0]), float(window[1])
-        if not np.isfinite(start) or not np.isfinite(end):
-            raise ValueError(
-                f"window boundaries must be finite, got ({start}, {end})"
-            )
-        if end < start:
-            raise ValueError(
-                "window_end must be greater than or equal to window_start, "
-                f"got ({start}, {end})"
-            )
-        validated.append((start, end))
+    validated = validate_windows(windows)
 
     pairs = list(
         local_global_comparison[

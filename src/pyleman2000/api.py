@@ -15,6 +15,7 @@ from pyleman2000.docker_runner import (
 )
 from pyleman2000.formatters import (
     format_local_global_comparison,
+    validate_windows,
     window_local_global_comparison,
 )
 from pyleman2000.types import Leman2000Result
@@ -82,13 +83,16 @@ def leman2000(
         Global decay parameter(s) in seconds.
     windows :
         Optional time windows for averaging. Each window is ``(start, end)``
-        in seconds. Both endpoints are included.
+        in seconds. Both endpoints are included. ``window_id`` values in the
+        returned table are 1-based, and rows are ordered window-major.
     windowing_function :
         Reduction used within each window. Defaults to :func:`numpy.mean`.
     keep_auditory_nerve :
-        If True, include auditory nerve simulation outputs.
+        If True, include auditory nerve simulation outputs. These can be
+        large nested dictionaries from the MATLAB binary.
     keep_periodicity_pitch :
-        If True, include periodicity pitch outputs.
+        If True, include periodicity pitch outputs. These can be large
+        nested dictionaries from the MATLAB binary.
     docker_image :
         Docker image providing the compiled model.
     docker_client :
@@ -110,6 +114,10 @@ def leman2000(
 
     local_vals = _as_float_sequence(local_decay_sec, "local_decay_sec")
     global_vals = _as_float_sequence(global_decay_sec, "global_decay_sec")
+    if windows is not None:
+        validate_windows(windows)
+    if not callable(windowing_function):
+        raise TypeError("windowing_function must be callable")
 
     detail = 5 if (keep_auditory_nerve or keep_periodicity_pitch) else 0
     raw = run_model(
@@ -140,7 +148,11 @@ def leman2000(
         (keep_periodicity_pitch, "periodicity_pitch"),
     ):
         if keep and field not in raw:
-            raise ValueError(f"Model output is missing requested field: {field}")
+            raise ValueError(
+                f"{field!r} was requested via keep_* flags, but Docker image "
+                f"{docker_image!r} did not return that field. Verify that the "
+                "image is compatible with this package version."
+            )
 
     local_global = format_local_global_comparison(
         raw["local_global_comparison"],

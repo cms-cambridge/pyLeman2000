@@ -38,7 +38,9 @@ def _ensure_image(client: docker.DockerClient, image: str) -> None:
             client.images.pull(image)
         except APIError as exc:
             raise Leman2000DockerError(
-                f"Failed to pull Docker image {image!r}: {exc}"
+                f"Failed to pull Docker image {image!r}. The first download "
+                "is about 1 GB compressed and may take several minutes. "
+                f"Underlying error: {exc}"
             ) from exc
     except DockerException as exc:
         raise Leman2000DockerError(
@@ -102,10 +104,23 @@ def run_model(
                 client_obj = docker.from_env()
             except DockerException as exc:
                 raise Leman2000DockerError(
-                    "Could not connect to Docker. Is the Docker daemon running?"
+                    "pyLeman2000 could not connect to Docker. Install Docker "
+                    "Desktop or the Docker Engine, start the daemon, and "
+                    "verify that `docker info` succeeds. See the README "
+                    "Docker setup notes for platform-specific guidance "
+                    "(including Apple Silicon)."
                 ) from exc
 
-        _ensure_image(client_obj, image)
+        try:
+            _ensure_image(client_obj, image)
+        except Leman2000DockerError:
+            raise
+        except DockerException as exc:
+            raise Leman2000DockerError(
+                f"Failed to prepare Docker image {image!r}. The first pull "
+                "is about 1 GB compressed and can take several minutes on a "
+                f"slow connection. Underlying error: {exc}"
+            ) from exc
 
         output_name = f"{uuid.uuid4()}.json"
         with TemporaryDirectory(prefix="pyleman2000-") as tmp:

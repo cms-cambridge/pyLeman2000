@@ -83,3 +83,15 @@ def test_result_equality_handles_numpy_arrays_in_payloads() -> None:
 
     assert left == equal
     assert left != different
+
+
+def test_result_repr_is_compact() -> None:
+    result = _result(
+        pd.DataFrame({"running_correlation": [0.5, 0.6]}),
+        {"images": [[1, 2]]},
+    )
+
+    text = repr(result)
+    assert "DataFrame(shape=(2, 1))" in text
+    assert "auditory_nerve=set" in text
+    assert "[[1, 2]]" not in text
