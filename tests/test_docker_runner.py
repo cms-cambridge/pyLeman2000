@@ -9,7 +9,7 @@ from unittest.mock import MagicMock
 import pytest
 from docker.errors import ContainerError
 
-from pyleman2000.api import example_wav_path
+from pyleman2000 import example_wav_path
 from pyleman2000.docker_runner import Leman2000DockerError, run_model
 
 

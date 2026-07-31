@@ -9,8 +9,7 @@ from unittest.mock import patch
 import pandas as pd
 import pytest
 
-from pyleman2000 import Leman2000Result, leman2000
-from pyleman2000.api import example_wav_path
+from pyleman2000 import Leman2000Result, example_wav_path, leman2000
 
 FIXTURE = Path(__file__).parent / "fixtures" / "sample_result.json"
 

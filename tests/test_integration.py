@@ -6,8 +6,7 @@ import pytest
 
 docker = pytest.importorskip("docker")
 
-from pyleman2000 import leman2000
-from pyleman2000.api import example_wav_path
+from pyleman2000 import example_wav_path, leman2000
 from pyleman2000.docker_runner import DEFAULT_IMAGE, Leman2000DockerError
 
 

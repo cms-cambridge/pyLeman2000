@@ -35,8 +35,7 @@ pip install -e ".[dev]"
 ## Example
 
 ```python
-from pyleman2000 import leman2000
-from pyleman2000.api import example_wav_path
+from pyleman2000 import example_wav_path, leman2000
 
 result = leman2000(
     input_file=example_wav_path(),
