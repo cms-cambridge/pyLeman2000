@@ -63,6 +63,8 @@ def test_local_global_comparison_matches_r(python_result) -> None:
 
 
 def test_windowed_comparison_matches_r(python_result) -> None:
+    # Values match for this fixture because no sample lands exactly on a
+    # window boundary; Python closed intervals otherwise diverge from R.
     expected = pd.read_csv(
         SNAPSHOT_DIR / "r_hihat_windowed_local_global_comparison.csv"
     )
@@ -91,3 +93,18 @@ def test_detail_level_does_not_change_correlations(
         rtol=1e-12,
         atol=1e-12,
     )
+    assert detailed_python_result.auditory_nerve is not None
+    assert isinstance(detailed_python_result.auditory_nerve, dict)
+    assert detailed_python_result.auditory_nerve
+
+
+def test_periodicity_pitch_can_be_requested() -> None:
+    result = leman2000(
+        input_file=example_wav_path(),
+        local_decay_sec=0.1,
+        global_decay_sec=1.0,
+        keep_periodicity_pitch=True,
+    )
+    assert result.periodicity_pitch is not None
+    assert isinstance(result.periodicity_pitch, dict)
+    assert result.periodicity_pitch

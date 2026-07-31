@@ -1,4 +1,14 @@
-library(leman2000R)
+if (!requireNamespace("remotes", quietly = TRUE)) {
+  stop("Install remotes before regenerating snapshots: install.packages(\"remotes\")")
+}
+
+leman2000r_ref <- "pmcharrison/leman2000R@6067bfdfad2a5ce4910790cf6f7f2e64a7d7837b"
+leman2000r_sha <- "6067bfdfad2a5ce4910790cf6f7f2e64a7d7837b"
+docker_image <- paste0(
+  "ghcr.io/pmcharrison/leman_2000@",
+  "sha256:08d5ce84b9844954473832af65188f8f56fdfc8bcc3c64e0307e532a062e2442"
+)
+latest_tag <- "ghcr.io/pmcharrison/leman_2000:latest"
 
 args <- commandArgs(trailingOnly = FALSE)
 file_arg <- grep("^--file=", args, value = TRUE)
@@ -9,42 +19,55 @@ script_path <- normalizePath(sub("^--file=", "", file_arg))
 repo_root <- normalizePath(file.path(dirname(script_path), ".."))
 wav <- file.path(repo_root, "src", "pyleman2000", "data", "hihat.wav")
 out_dir <- file.path(repo_root, "tests", "snapshots")
-docker_image <- paste0(
-  "ghcr.io/pmcharrison/leman_2000@",
-  "sha256:08d5ce84b9844954473832af65188f8f56fdfc8bcc3c64e0307e532a062e2442"
-)
 
 if (!file.exists(wav)) {
   stop("Example WAV does not exist: ", wav)
 }
 dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
 
+message("Installing pinned leman2000R revision ", leman2000r_sha)
+remotes::install_github(leman2000r_ref, upgrade = "never", quiet = TRUE)
+suppressPackageStartupMessages(library(leman2000R))
+
+installed_sha <- utils::packageDescription("leman2000R")$RemoteSha
+if (is.null(installed_sha) || !identical(installed_sha, leman2000r_sha)) {
+  stop(
+    "Installed leman2000R revision is ",
+    if (is.null(installed_sha)) "unknown" else installed_sha,
+    "; expected ",
+    leman2000r_sha
+  )
+}
+
 if (system2("docker", c("pull", docker_image)) != 0) {
   stop("Could not pull pinned Docker image")
 }
-if (
-  system2(
-    "docker",
-    c("tag", docker_image, "ghcr.io/pmcharrison/leman_2000:latest")
-  ) != 0
-) {
-  stop("Could not tag pinned Docker image for leman2000R")
-}
 
-package_path <- find.package("leman2000R")
-source_revision <- system2(
-  "git",
-  c("-C", package_path, "rev-parse", "HEAD"),
+previous_latest_id <- system2(
+  "docker",
+  c("image", "inspect", "--format", "{{.Id}}", latest_tag),
   stdout = TRUE,
   stderr = FALSE
 )
-if (
-  !is.null(attr(source_revision, "status")) &&
-    attr(source_revision, "status") != 0
-) {
-  source_revision <- "unavailable"
+had_previous_latest <- is.null(attr(previous_latest_id, "status")) ||
+  attr(previous_latest_id, "status") == 0
+if (had_previous_latest) {
+  previous_latest_id <- previous_latest_id[[1]]
 } else {
-  source_revision <- source_revision[[1]]
+  previous_latest_id <- NULL
+}
+
+restore_latest_tag <- function() {
+  if (!is.null(previous_latest_id)) {
+    system2("docker", c("tag", previous_latest_id, latest_tag))
+  } else {
+    system2("docker", c("rmi", latest_tag), stdout = FALSE, stderr = FALSE)
+  }
+}
+on.exit(restore_latest_tag(), add = TRUE)
+
+if (system2("docker", c("tag", docker_image, latest_tag)) != 0) {
+  stop("Could not tag pinned Docker image for leman2000R")
 }
 
 write_csv_atomic <- function(value, filename) {
@@ -136,8 +159,13 @@ writeLines(
   c(
     paste("Generated:", format(Sys.time(), tz = "UTC", usetz = TRUE)),
     paste("leman2000R:", as.character(packageVersion("leman2000R"))),
-    paste("Source revision:", source_revision),
+    paste("Source revision:", installed_sha),
     paste("Docker image:", docker_image),
+    paste(
+      "Windowing note: R uses half-open [start, end); Python pyLeman2000 uses",
+      "closed [start, end]. These hi-hat snapshots have no samples exactly on",
+      "window boundaries 0.1/0.2/0.3, so values still match."
+    ),
     "",
     capture.output(sessionInfo())
   ),

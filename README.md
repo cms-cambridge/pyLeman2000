@@ -58,7 +58,10 @@ findings.
 global tonal images over time. Higher values mean the short-term (local) and
 longer-term (global) representations are more similar at that moment. Optional
 `windows` summarise those correlations over closed time intervals of interest
-(for example chord or phrase spans).
+(for example chord or phrase spans). This differs from `leman2000R`, which uses
+half-open intervals `[start, end)`: pyLeman2000 includes both endpoints, so a
+sample that falls exactly on a shared boundary contributes to both adjacent
+windows.
 
 Input files must use a `.wav` extension. The Dockerised binary inherits the
 IPEM/MATLAB WAV constraints of the original toolbox; if a file fails inside
@@ -114,9 +117,10 @@ result.windowed_local_global_comparison
 ```
 
 Window intervals include both endpoints. A timestamp on a boundary shared by
-adjacent windows contributes to both windows. `window_id` is 1-based, and
-windowed rows are ordered window-major (all parameter combinations for window
-1, then window 2, and so on).
+adjacent windows contributes to both windows. This is an intentional divergence
+from `leman2000R`, which uses half-open `[start, end)`. `window_id` is 1-based,
+and windowed rows are ordered window-major (all parameter combinations for
+window 1, then window 2, and so on).
 
 `leman2000` returns a `Leman2000Result` dataclass with:
 
@@ -128,7 +132,8 @@ windowed rows are ordered window-major (all parameter combinations for window
 
 The result object itself is frozen (attribute reassignment is blocked), but
 embedded DataFrames remain mutable through pandas APIs. Constructor inputs are
-copied so later edits to caller-owned objects do not alter the result.
+copied so later edits to caller-owned objects do not alter the result. Result
+equality is identity-based; compare DataFrames or fields explicitly when needed.
 
 ## Tests
 

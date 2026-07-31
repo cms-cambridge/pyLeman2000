@@ -160,7 +160,8 @@ def window_local_global_comparison(
 
     Windows are closed intervals: both ``window_start`` and ``window_end``
     are included. A boundary shared by adjacent windows is therefore included
-    in both.
+    in both. This intentionally diverges from ``leman2000R``, which uses
+    half-open intervals ``[start, end)``.
 
     Parameters
     ----------

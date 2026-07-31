@@ -35,6 +35,7 @@ packages = ["src/pyleman2000"]
 include = [
     "/src",
     "/tests",
+    "/scripts",
     "/README.md",
     "/LICENSE",
 ]

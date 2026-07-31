@@ -130,6 +130,7 @@ def test_empty_window_yields_nan(raw_result: dict) -> None:
 
 
 def test_windows_are_closed_on_both_ends() -> None:
+    """Closed intervals intentionally diverge from leman2000R's half-open windows."""
     comparison = pd.DataFrame(
         {
             "local_decay_sec": [0.1, 0.1, 0.1],

@@ -83,8 +83,10 @@ def leman2000(
         Global decay parameter(s) in seconds.
     windows :
         Optional time windows for averaging. Each window is ``(start, end)``
-        in seconds. Both endpoints are included. ``window_id`` values in the
-        returned table are 1-based, and rows are ordered window-major.
+        in seconds. Both endpoints are included (intentional divergence from
+        ``leman2000R``, which uses half-open ``[start, end)``). ``window_id``
+        values in the returned table are 1-based, and rows are ordered
+        window-major.
     windowing_function :
         Reduction used within each window. Defaults to :func:`numpy.mean`.
     keep_auditory_nerve :
