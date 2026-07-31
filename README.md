@@ -44,8 +44,40 @@ result = leman2000(
     windows=[(0.0, 0.1), (0.1, 0.2)],
 )
 
-print(result.local_global_comparison.head())
-print(result.windowed_local_global_comparison)
+result.audio_length_sec, result.num_channels, result.sample_rate
+```
+
+```text
+(0.3707936508, 1, 44100.0)
+```
+
+```python
+result.local_global_comparison.head()
+```
+
+```text
+   local_decay_sec  global_decay_sec  time_sec  running_correlation
+0              0.1               1.0  0.000000             1.000000
+1              0.1               1.0  0.014832             0.999999
+2              0.1               1.0  0.029663             0.999998
+3              0.1               1.0  0.044495             0.999996
+4              0.1               1.0  0.059327             0.999993
+```
+
+```python
+result.windowed_local_global_comparison
+```
+
+```text
+   local_decay_sec  global_decay_sec  window_id  window_start  window_end  local_global_correlation
+0              0.1               1.0          1           0.0         0.1                  0.999977
+1              0.1               1.0          2           0.1         0.2                  0.998674
+2              0.1               2.0          1           0.0         0.1                  0.999974
+3              0.1               2.0          2           0.1         0.2                  0.998546
+4              0.5               1.0          1           0.0         0.1                  1.000000
+5              0.5               1.0          2           0.1         0.2                  0.999988
+6              0.5               2.0          1           0.0         0.1                  0.999999
+7              0.5               2.0          2           0.1         0.2                  0.999972
 ```
 
 `leman2000` returns a `Leman2000Result` dataclass with:
