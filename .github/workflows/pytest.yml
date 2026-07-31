@@ -1,0 +1,27 @@
+name: pytest
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install package
+        run: pip install -e ".[dev]"
+
+      - name: Pull Leman 2000 Docker image
+        run: docker pull ghcr.io/pmcharrison/leman_2000:latest
+
+      - name: Run pytest
+        run: pytest -v

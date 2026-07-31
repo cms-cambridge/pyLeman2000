@@ -89,12 +89,14 @@ result.windowed_local_global_comparison
 
 ## Tests
 
-```bash
-pytest
-```
-
-Docker-backed integration tests are marked and skipped when Docker is unavailable:
+Requires Docker (including for integration and R-snapshot tests):
 
 ```bash
-pytest -m integration
+pip install -e ".[dev]"
+docker pull ghcr.io/pmcharrison/leman_2000:latest
+pytest -v
 ```
+
+Snapshot CSVs under `tests/snapshots/` were generated from
+[`leman2000R`](https://github.com/pmcharrison/leman2000R) via
+`scripts/generate_r_snapshots.R`.

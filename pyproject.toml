@@ -37,5 +37,5 @@ include = [
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 markers = [
-    "integration: tests that require Docker and the leman_2000 image",
+    "integration: tests that require Docker and the leman_2000 image (not skipped)",
 ]
