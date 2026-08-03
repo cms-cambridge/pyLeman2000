@@ -7,8 +7,10 @@ import math
 import tarfile
 import tempfile
 import uuid
+from collections.abc import Iterator, Sequence
+from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, BinaryIO, Sequence
+from typing import Any, BinaryIO
 
 import docker
 from docker.errors import APIError, DockerException, ImageNotFound, NotFound
@@ -88,6 +90,35 @@ def _ensure_image(
         raise _pull_error(image, exc) from exc
 
 
+@contextmanager
+def _docker_client(
+    client: docker.DockerClient | None,
+) -> Iterator[docker.DockerClient]:
+    """Yield a Docker client, closing one created for this call."""
+    if client is not None:
+        yield client
+        return
+
+    try:
+        owned = docker.from_env()
+    except DockerException as exc:
+        raise Leman2000DockerError(
+            "pyLeman2000 could not connect to Docker. Install Docker "
+            "Desktop or the Docker Engine, start the daemon, and "
+            "verify that `docker info` succeeds. See the README "
+            "Docker setup notes for platform-specific guidance "
+            "(including Apple Silicon)."
+        ) from exc
+
+    try:
+        yield owned
+    finally:
+        try:
+            owned.close()
+        except DockerException:
+            pass
+
+
 def _build_input_archive(input_file: Path) -> BinaryIO:
     """Build a tar archive holding the input file and an empty output directory.
 
@@ -119,6 +150,47 @@ def _build_input_archive(input_file: Path) -> BinaryIO:
         raise
 
 
+def _wait_for_container(
+    container: Container, timeout_sec: float | None
+) -> None:
+    """Block until ``container`` exits successfully.
+
+    Raises
+    ------
+    Leman2000DockerError
+        If the wait times out or the container exits with a non-zero status.
+    """
+    try:
+        wait_result = (
+            container.wait()
+            if timeout_sec is None
+            else container.wait(timeout=timeout_sec)
+        )
+    except Timeout as exc:
+        duration = (
+            f" after {timeout_sec:g} seconds" if timeout_sec is not None else ""
+        )
+        raise Leman2000DockerError(
+            f"The Leman (2000) Docker container timed out{duration}."
+        ) from exc
+
+    exit_status = int(wait_result.get("StatusCode", -1))
+    if exit_status == 0:
+        return
+
+    stderr_value = container.logs(stdout=False, stderr=True)
+    stderr = (
+        stderr_value.decode("utf-8", errors="replace")
+        if isinstance(stderr_value, (bytes, bytearray))
+        else str(stderr_value)
+    )
+    raise Leman2000DockerError(
+        "The Leman (2000) Docker container failed "
+        f"(exit status {exit_status})."
+        f"{(' stderr: ' + stderr) if stderr else ''}"
+    )
+
+
 def _read_output_json(container: Container, container_path: str) -> dict[str, Any]:
     """Copy the model output out of the container and parse it as JSON."""
     try:
@@ -146,6 +218,42 @@ def _read_output_json(container: Container, container_path: str) -> dict[str, An
             raise Leman2000DockerError(
                 f"Model output was not valid JSON: {container_path}"
             ) from exc
+
+
+def _run_container(
+    client: docker.DockerClient,
+    *,
+    image: str,
+    command: Sequence[str],
+    input_file: Path,
+    output_path: str,
+    timeout_sec: float | None,
+) -> dict[str, Any]:
+    """Create a container, copy input in, run it, and copy JSON output out."""
+    container = None
+    try:
+        container = client.containers.create(
+            image=image,
+            command=list(command),
+            platform=CONTAINER_PLATFORM,
+        )
+        with _build_input_archive(input_file) as archive:
+            container.put_archive("/", archive)
+        container.start()
+        _wait_for_container(container, timeout_sec)
+        return _read_output_json(container, output_path)
+    except ImageNotFound as exc:
+        raise Leman2000DockerError(f"Docker image not found: {image!r}") from exc
+    except APIError as exc:
+        raise Leman2000DockerError(
+            f"Docker API error while running {image!r}: {exc}"
+        ) from exc
+    finally:
+        if container is not None:
+            try:
+                container.remove(force=True)
+            except DockerException:
+                pass
 
 
 def run_model(
@@ -202,21 +310,7 @@ def run_model(
         if not math.isfinite(timeout_sec) or timeout_sec <= 0:
             raise ValueError("timeout_sec must be a finite positive number or None")
 
-    owns_client = client is None
-    client_obj: docker.DockerClient | None = client
-    try:
-        if client_obj is None:
-            try:
-                client_obj = docker.from_env()
-            except DockerException as exc:
-                raise Leman2000DockerError(
-                    "pyLeman2000 could not connect to Docker. Install Docker "
-                    "Desktop or the Docker Engine, start the daemon, and "
-                    "verify that `docker info` succeeds. See the README "
-                    "Docker setup notes for platform-specific guidance "
-                    "(including Apple Silicon)."
-                ) from exc
-
+    with _docker_client(client) as client_obj:
         try:
             _ensure_image(client_obj, image, show_progress=show_progress)
         except Leman2000DockerError:
@@ -229,69 +323,17 @@ def run_model(
             ) from exc
 
         output_path = f"{CONTAINER_OUTPUT_DIR}/{uuid.uuid4()}.json"
-        command = [
-            CONTAINER_INPUT_PATH,
-            output_path,
-            _format_decay_list(local_decay_sec),
-            _format_decay_list(global_decay_sec),
-            str(int(detail)),
-        ]
-
-        container = None
-        try:
-            container = client_obj.containers.create(
-                image=image,
-                command=command,
-                platform=CONTAINER_PLATFORM,
-            )
-            with _build_input_archive(input_file) as archive:
-                container.put_archive("/", archive)
-            container.start()
-
-            try:
-                wait_result = (
-                    container.wait()
-                    if timeout_sec is None
-                    else container.wait(timeout=timeout_sec)
-                )
-            except Timeout as exc:
-                duration = (
-                    f" after {timeout_sec:g} seconds" if timeout_sec is not None else ""
-                )
-                raise Leman2000DockerError(
-                    f"The Leman (2000) Docker container timed out{duration}."
-                ) from exc
-
-            exit_status = int(wait_result.get("StatusCode", -1))
-            if exit_status != 0:
-                stderr_value = container.logs(stdout=False, stderr=True)
-                stderr = (
-                    stderr_value.decode("utf-8", errors="replace")
-                    if isinstance(stderr_value, (bytes, bytearray))
-                    else str(stderr_value)
-                )
-                raise Leman2000DockerError(
-                    "The Leman (2000) Docker container failed "
-                    f"(exit status {exit_status})."
-                    f"{(' stderr: ' + stderr) if stderr else ''}"
-                )
-
-            return _read_output_json(container, output_path)
-        except ImageNotFound as exc:
-            raise Leman2000DockerError(f"Docker image not found: {image!r}") from exc
-        except APIError as exc:
-            raise Leman2000DockerError(
-                f"Docker API error while running {image!r}: {exc}"
-            ) from exc
-        finally:
-            if container is not None:
-                try:
-                    container.remove(force=True)
-                except DockerException:
-                    pass
-    finally:
-        if owns_client and client_obj is not None:
-            try:
-                client_obj.close()
-            except DockerException:
-                pass
+        return _run_container(
+            client_obj,
+            image=image,
+            command=[
+                CONTAINER_INPUT_PATH,
+                output_path,
+                _format_decay_list(local_decay_sec),
+                _format_decay_list(global_decay_sec),
+                str(int(detail)),
+            ],
+            input_file=input_file,
+            output_path=output_path,
+            timeout_sec=timeout_sec,
+        )
