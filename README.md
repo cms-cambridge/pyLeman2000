@@ -21,6 +21,11 @@ This is a Python port of [`leman2000R`](https://github.com/pmcharrison/leman2000
   pulled (~1 GB compressed). That first pull can take several minutes and may
   look stalled if progress is not shown.
 
+Input and output files are copied in and out of the container rather than
+bind-mounted, so no Docker file sharing configuration is needed. Analyses work
+regardless of where the audio lives, including paths that Docker Desktop does
+not share by default (such as WAV files inside `site-packages`).
+
 > **Note:** The underlying image targets `linux/amd64`. On Apple Silicon, enable
 > Docker Desktop's amd64/Rosetta or QEMU emulation, then verify with
 > `docker run --platform=linux/amd64 --rm hello-world`. Emulated runs are
