@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
+import numpy as np
 import pandas as pd
 import pytest
 
@@ -52,6 +53,8 @@ def test_leman2000_with_mocked_runner(raw_result: dict, tmp_path: Path) -> None:
     run_model.assert_called_once()
     kwargs = run_model.call_args.kwargs
     assert kwargs["detail"] == 0
+    assert kwargs["local_decay_sec"] == [0.1, 0.2]
+    assert kwargs["global_decay_sec"] == [1.0, 2.0]
 
 
 def test_singleton_parameters(raw_result: dict, tmp_path: Path) -> None:
@@ -91,6 +94,144 @@ def test_keep_flags_request_detail_and_retain_fields(
     assert run_model.call_args.kwargs["detail"] == 5
     assert result.auditory_nerve is not None
     assert result.periodicity_pitch is None
+
+
+def test_forwards_docker_options_and_windowing_function(
+    raw_result: dict, tmp_path: Path
+) -> None:
+    wav = tmp_path / "tone.WAV"
+    wav.write_bytes(b"RIFF")
+    client = MagicMock()
+
+    with patch("pyleman2000.api.run_model", return_value=raw_result) as run_model:
+        result = leman2000(
+            input_file=wav,
+            local_decay_sec=(0.1,),
+            global_decay_sec=(1.0,),
+            windows=[(0.0, 0.3)],
+            windowing_function=np.median,
+            docker_image="example/image@sha256:digest",
+            docker_client=client,
+            docker_timeout_sec=12.0,
+        )
+
+    assert run_model.call_args.kwargs["image"] == "example/image@sha256:digest"
+    assert run_model.call_args.kwargs["client"] is client
+    assert run_model.call_args.kwargs["timeout_sec"] == 12.0
+    expected = np.median(
+        result.local_global_comparison.loc[
+            (result.local_global_comparison["local_decay_sec"] == 0.1)
+            & (result.local_global_comparison["global_decay_sec"] == 1.0),
+            "running_correlation",
+        ]
+    )
+    assert (
+        result.windowed_local_global_comparison.iloc[0][
+            "local_global_correlation"
+        ]
+        == pytest.approx(expected)
+    )
+
+
+@pytest.mark.parametrize(
+    "value, error, match",
+    [
+        ([], ValueError, "must not be empty"),
+        ("0.1", TypeError, "float or sequence"),
+        (True, TypeError, "boolean"),
+        ([False], TypeError, "boolean"),
+        (0.0, ValueError, "positive"),
+        (-0.1, ValueError, "positive"),
+        (np.nan, ValueError, "finite"),
+        (np.inf, ValueError, "finite"),
+    ],
+)
+def test_rejects_invalid_decay_values(
+    raw_result: dict,
+    tmp_path: Path,
+    value,
+    error: type[Exception],
+    match: str,
+) -> None:
+    wav = tmp_path / "tone.wav"
+    wav.write_bytes(b"RIFF")
+
+    with pytest.raises(error, match=match):
+        leman2000(wav, local_decay_sec=value, global_decay_sec=1.0)
+
+
+def test_requested_detail_must_be_present(
+    raw_result: dict, tmp_path: Path
+) -> None:
+    wav = tmp_path / "tone.wav"
+    wav.write_bytes(b"RIFF")
+    raw_result.pop("auditory_nerve")
+
+    with (
+        patch("pyleman2000.api.run_model", return_value=raw_result),
+        pytest.raises(ValueError, match="auditory_nerve"),
+    ):
+        leman2000(
+            wav,
+            local_decay_sec=0.1,
+            global_decay_sec=1.0,
+            keep_auditory_nerve=True,
+        )
+
+
+def test_invalid_windows_are_rejected_before_docker(tmp_path: Path) -> None:
+    wav = tmp_path / "tone.wav"
+    wav.write_bytes(b"RIFF")
+
+    with (
+        patch("pyleman2000.api.run_model") as run_model,
+        pytest.raises(ValueError, match="greater than or equal"),
+    ):
+        leman2000(
+            wav,
+            local_decay_sec=0.1,
+            global_decay_sec=1.0,
+            windows=[(1.0, 0.0)],
+        )
+
+    run_model.assert_not_called()
+
+
+def test_empty_windows_are_rejected_before_docker(tmp_path: Path) -> None:
+    wav = tmp_path / "tone.wav"
+    wav.write_bytes(b"RIFF")
+
+    with (
+        patch("pyleman2000.api.run_model") as run_model,
+        pytest.raises(ValueError, match="at least one"),
+    ):
+        leman2000(
+            wav,
+            local_decay_sec=0.1,
+            global_decay_sec=1.0,
+            windows=[],
+        )
+
+    run_model.assert_not_called()
+
+
+def test_rejects_non_callable_windowing_function(tmp_path: Path) -> None:
+    wav = tmp_path / "tone.wav"
+    wav.write_bytes(b"RIFF")
+
+    with (
+        patch("pyleman2000.api.run_model") as run_model,
+        pytest.raises(TypeError, match="windowing_function"),
+    ):
+        leman2000(
+            wav,
+            local_decay_sec=0.1,
+            global_decay_sec=1.0,
+            windows=[(0.0, 0.1)],
+            windowing_function="mean",  # type: ignore[arg-type]
+        )
+
+    run_model.assert_not_called()
 
 
 def test_rejects_non_wav(tmp_path: Path) -> None:

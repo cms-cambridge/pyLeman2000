@@ -3,17 +3,23 @@
 from __future__ import annotations
 
 import json
+import math
 import uuid
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Any, Sequence
 
 import docker
-from docker.errors import APIError, ContainerError, DockerException, ImageNotFound
+from docker.errors import APIError, DockerException, ImageNotFound
+from requests.exceptions import Timeout
 
-DEFAULT_IMAGE = "ghcr.io/pmcharrison/leman_2000:latest"
+DEFAULT_IMAGE = (
+    "ghcr.io/pmcharrison/leman_2000"
+    "@sha256:08d5ce84b9844954473832af65188f8f56fdfc8bcc3c64e0307e532a062e2442"
+)
 INPUT_MOUNT = "/input.wav"
 OUTPUT_MOUNT = "/output"
+DEFAULT_TIMEOUT_SEC = 600.0
 
 
 class Leman2000DockerError(RuntimeError):
@@ -32,8 +38,14 @@ def _ensure_image(client: docker.DockerClient, image: str) -> None:
             client.images.pull(image)
         except APIError as exc:
             raise Leman2000DockerError(
-                f"Failed to pull Docker image {image!r}: {exc}"
+                f"Failed to pull Docker image {image!r}. The first download "
+                "is about 1 GB compressed and may take several minutes. "
+                f"Underlying error: {exc}"
             ) from exc
+    except DockerException as exc:
+        raise Leman2000DockerError(
+            f"Failed to inspect Docker image {image!r}: {exc}"
+        ) from exc
 
 
 def run_model(
@@ -44,6 +56,7 @@ def run_model(
     detail: int = 0,
     image: str = DEFAULT_IMAGE,
     client: docker.DockerClient | None = None,
+    timeout_sec: float | None = DEFAULT_TIMEOUT_SEC,
 ) -> dict[str, Any]:
     """Run the compiled model in Docker and return parsed JSON.
 
@@ -62,6 +75,8 @@ def run_model(
         Docker image name.
     client :
         Optional Docker client. Created with :func:`docker.from_env` if omitted.
+    timeout_sec :
+        Maximum container runtime in seconds. Set to None for no timeout.
 
     Returns
     -------
@@ -76,6 +91,10 @@ def run_model(
     input_file = Path(input_file).resolve()
     if not input_file.is_file():
         raise FileNotFoundError(f"Input file not found: {input_file}")
+    if timeout_sec is not None:
+        timeout_sec = float(timeout_sec)
+        if not math.isfinite(timeout_sec) or timeout_sec <= 0:
+            raise ValueError("timeout_sec must be a finite positive number or None")
 
     owns_client = client is None
     client_obj: docker.DockerClient | None = client
@@ -85,53 +104,82 @@ def run_model(
                 client_obj = docker.from_env()
             except DockerException as exc:
                 raise Leman2000DockerError(
-                    "Could not connect to Docker. Is the Docker daemon running?"
+                    "pyLeman2000 could not connect to Docker. Install Docker "
+                    "Desktop or the Docker Engine, start the daemon, and "
+                    "verify that `docker info` succeeds. See the README "
+                    "Docker setup notes for platform-specific guidance "
+                    "(including Apple Silicon)."
                 ) from exc
 
-        _ensure_image(client_obj, image)
+        try:
+            _ensure_image(client_obj, image)
+        except Leman2000DockerError:
+            raise
+        except DockerException as exc:
+            raise Leman2000DockerError(
+                f"Failed to prepare Docker image {image!r}. The first pull "
+                "is about 1 GB compressed and can take several minutes on a "
+                f"slow connection. Underlying error: {exc}"
+            ) from exc
 
         output_name = f"{uuid.uuid4()}.json"
         with TemporaryDirectory(prefix="pyleman2000-") as tmp:
             tmp_dir = Path(tmp)
-            host_input = tmp_dir / "input.wav"
-            host_input.write_bytes(input_file.read_bytes())
             host_output_dir = tmp_dir / "output"
             host_output_dir.mkdir()
 
             command = [
-                "input.wav",
-                f"output/{output_name}",
+                INPUT_MOUNT,
+                f"{OUTPUT_MOUNT}/{output_name}",
                 _format_decay_list(local_decay_sec),
                 _format_decay_list(global_decay_sec),
                 str(int(detail)),
             ]
             volumes = {
-                str(host_input): {"bind": INPUT_MOUNT, "mode": "ro"},
+                str(input_file): {"bind": INPUT_MOUNT, "mode": "ro"},
                 str(host_output_dir): {"bind": OUTPUT_MOUNT, "mode": "rw"},
             }
 
+            container = None
             try:
-                client_obj.containers.run(
+                container = client_obj.containers.run(
                     image=image,
                     command=command,
                     volumes=volumes,
-                    remove=True,
+                    detach=True,
                     stdout=True,
                     stderr=True,
+                    platform="linux/amd64",
                 )
-            except ContainerError as exc:
-                stderr = ""
-                if exc.stderr:
-                    stderr = (
-                        exc.stderr.decode("utf-8", errors="replace")
-                        if isinstance(exc.stderr, (bytes, bytearray))
-                        else str(exc.stderr)
+                try:
+                    wait_result = (
+                        container.wait()
+                        if timeout_sec is None
+                        else container.wait(timeout=timeout_sec)
                     )
-                raise Leman2000DockerError(
-                    "The Leman (2000) Docker container failed "
-                    f"(exit status {exc.exit_status})."
-                    f"{(' stderr: ' + stderr) if stderr else ''}"
-                ) from exc
+                except Timeout as exc:
+                    duration = (
+                        f" after {timeout_sec:g} seconds"
+                        if timeout_sec is not None
+                        else ""
+                    )
+                    raise Leman2000DockerError(
+                        f"The Leman (2000) Docker container timed out{duration}."
+                    ) from exc
+
+                exit_status = int(wait_result.get("StatusCode", -1))
+                if exit_status != 0:
+                    stderr_value = container.logs(stdout=False, stderr=True)
+                    stderr = (
+                        stderr_value.decode("utf-8", errors="replace")
+                        if isinstance(stderr_value, (bytes, bytearray))
+                        else str(stderr_value)
+                    )
+                    raise Leman2000DockerError(
+                        "The Leman (2000) Docker container failed "
+                        f"(exit status {exit_status})."
+                        f"{(' stderr: ' + stderr) if stderr else ''}"
+                    )
             except ImageNotFound as exc:
                 raise Leman2000DockerError(
                     f"Docker image not found: {image!r}"
@@ -140,16 +188,27 @@ def run_model(
                 raise Leman2000DockerError(
                     f"Docker API error while running {image!r}: {exc}"
                 ) from exc
+            finally:
+                if container is not None:
+                    try:
+                        container.remove(force=True)
+                    except DockerException:
+                        pass
 
             output_path = host_output_dir / output_name
             if not output_path.is_file():
                 raise Leman2000DockerError(
                     f"Model finished but output file was not created: {output_path}"
                 )
-            return json.loads(output_path.read_text(encoding="utf-8"))
+            try:
+                return json.loads(output_path.read_text(encoding="utf-8"))
+            except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+                raise Leman2000DockerError(
+                    f"Model output was not valid JSON: {output_path}"
+                ) from exc
     finally:
         if owns_client and client_obj is not None:
             try:
                 client_obj.close()
-            except Exception:
+            except DockerException:
                 pass

@@ -8,6 +8,21 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+LOCAL_GLOBAL_COLUMNS = [
+    "local_decay_sec",
+    "global_decay_sec",
+    "time_sec",
+    "running_correlation",
+]
+WINDOWED_COLUMNS = [
+    "local_decay_sec",
+    "global_decay_sec",
+    "window_id",
+    "window_start",
+    "window_end",
+    "local_global_correlation",
+]
+
 
 def normalize_local_global_comparison(
     local_global_comparison: Any,
@@ -49,6 +64,44 @@ def normalize_local_global_comparison(
     )
 
 
+def validate_windows(
+    windows: Sequence[Sequence[float]],
+) -> list[tuple[float, float]]:
+    """Validate and normalize window ``(start, end)`` pairs.
+
+    Parameters
+    ----------
+    windows :
+        Sequence of ``(start_sec, end_sec)`` pairs.
+
+    Returns
+    -------
+    list of tuple
+        Finite ``(start, end)`` pairs with ``end >= start``.
+    """
+    if len(windows) == 0:
+        raise ValueError("windows must contain at least one (start, end) pair")
+
+    validated: list[tuple[float, float]] = []
+    for window in windows:
+        if len(window) != 2:
+            raise ValueError(
+                f"Each window must have length 2, got {window!r}"
+            )
+        start, end = float(window[0]), float(window[1])
+        if not np.isfinite(start) or not np.isfinite(end):
+            raise ValueError(
+                f"window boundaries must be finite, got ({start}, {end})"
+            )
+        if end < start:
+            raise ValueError(
+                "window_end must be greater than or equal to window_start, "
+                f"got ({start}, {end})"
+            )
+        validated.append((start, end))
+    return validated
+
+
 def format_local_global_comparison(
     local_global_comparison: Any,
     audio_length_sec: float,
@@ -68,13 +121,19 @@ def format_local_global_comparison(
         Columns ``local_decay_sec``, ``global_decay_sec``, ``time_sec``,
         ``running_correlation``.
     """
+    audio_length_sec = float(audio_length_sec)
+    if not np.isfinite(audio_length_sec) or audio_length_sec < 0:
+        raise ValueError("audio_length_sec must be a finite, non-negative number")
+
     records = normalize_local_global_comparison(local_global_comparison)
     frames: list[pd.DataFrame] = []
 
     for record in records:
         running_correlation = np.asarray(record["running_correlation"], dtype=float)
+        if running_correlation.ndim != 1:
+            raise ValueError("running_correlation must be one-dimensional")
         n = len(running_correlation)
-        time_sec = np.linspace(0.0, float(audio_length_sec), num=n)
+        time_sec = np.linspace(0.0, audio_length_sec, num=n)
         frames.append(
             pd.DataFrame(
                 {
@@ -87,14 +146,7 @@ def format_local_global_comparison(
         )
 
     if not frames:
-        return pd.DataFrame(
-            columns=[
-                "local_decay_sec",
-                "global_decay_sec",
-                "time_sec",
-                "running_correlation",
-            ]
-        )
+        return pd.DataFrame(columns=LOCAL_GLOBAL_COLUMNS)
 
     return pd.concat(frames, ignore_index=True)
 
@@ -104,9 +156,12 @@ def window_local_global_comparison(
     windows: Sequence[Sequence[float]],
     windowing_function: Callable[[np.ndarray], float] = np.mean,
 ) -> pd.DataFrame:
-    """Average running correlations within specified time windows.
+    """Aggregate running correlations within specified time windows.
 
-    Averaging uses the half-open interval ``[window_start, window_end)``.
+    Windows are closed intervals: both ``window_start`` and ``window_end``
+    are included. A boundary shared by adjacent windows is therefore included
+    in both. This intentionally diverges from ``leman2000R``, which uses
+    half-open intervals ``[start, end)``.
 
     Parameters
     ----------
@@ -121,52 +176,57 @@ def window_local_global_comparison(
     Returns
     -------
     pandas.DataFrame
-        One row per decay-parameter pair and window.
+        One row per decay-parameter pair and window. Rows are ordered
+        window-major (``window_id`` slowest to change within each window
+        block of parameter pairs). ``window_id`` is 1-based.
     """
-    if not windows:
-        raise ValueError("windows must contain at least one (start, end) pair")
+    if not callable(windowing_function):
+        raise TypeError("windowing_function must be callable")
 
-    validated: list[tuple[float, float]] = []
-    for window in windows:
-        if len(window) != 2:
-            raise ValueError(
-                f"Each window must have length 2, got {window!r}"
-            )
-        start, end = float(window[0]), float(window[1])
-        if end < start:
-            raise ValueError(
-                f"window_end must be >= window_start, got ({start}, {end})"
-            )
-        validated.append((start, end))
+    validated = validate_windows(windows)
 
-    local_vals = sorted(local_global_comparison["local_decay_sec"].unique())
-    global_vals = sorted(local_global_comparison["global_decay_sec"].unique())
+    pairs = list(
+        local_global_comparison[
+            ["local_decay_sec", "global_decay_sec"]
+        ]
+        .drop_duplicates()
+        .itertuples(index=False, name=None)
+    )
+    grouped = {
+        (local_decay_sec, global_decay_sec): group[
+            ["time_sec", "running_correlation"]
+        ].to_numpy(dtype=float)
+        for (local_decay_sec, global_decay_sec), group in (
+            local_global_comparison.groupby(
+                ["local_decay_sec", "global_decay_sec"],
+                sort=False,
+            )
+        )
+    }
     rows: list[dict[str, Any]] = []
 
-    for local_decay_sec in local_vals:
-        for global_decay_sec in global_vals:
-            subset = local_global_comparison[
-                (local_global_comparison["local_decay_sec"] == local_decay_sec)
-                & (local_global_comparison["global_decay_sec"] == global_decay_sec)
-            ]
-            for window_id, (window_start, window_end) in enumerate(validated, start=1):
-                mask = (subset["time_sec"] >= window_start) & (
-                    subset["time_sec"] < window_end
-                )
-                values = subset.loc[mask, "running_correlation"].to_numpy(dtype=float)
-                if values.size == 0:
-                    aggregated = float("nan")
-                else:
-                    aggregated = float(windowing_function(values))
-                rows.append(
-                    {
-                        "local_decay_sec": float(local_decay_sec),
-                        "global_decay_sec": float(global_decay_sec),
-                        "window_id": window_id,
-                        "window_start": window_start,
-                        "window_end": window_end,
-                        "local_global_correlation": aggregated,
-                    }
-                )
+    # Window-major ordering matches leman2000R's expand.grid output.
+    for window_id, (window_start, window_end) in enumerate(validated, start=1):
+        for local_decay_sec, global_decay_sec in pairs:
+            samples = grouped[(local_decay_sec, global_decay_sec)]
+            mask = (samples[:, 0] >= window_start) & (
+                samples[:, 0] <= window_end
+            )
+            values = samples[mask, 1]
+            aggregated = (
+                float(windowing_function(values))
+                if values.size
+                else float("nan")
+            )
+            rows.append(
+                {
+                    "local_decay_sec": float(local_decay_sec),
+                    "global_decay_sec": float(global_decay_sec),
+                    "window_id": window_id,
+                    "window_start": window_start,
+                    "window_end": window_end,
+                    "local_global_correlation": aggregated,
+                }
+            )
 
-    return pd.DataFrame(rows)
+    return pd.DataFrame(rows, columns=WINDOWED_COLUMNS)
