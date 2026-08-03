@@ -92,7 +92,7 @@ def test_run_model_copies_input_into_the_container() -> None:
     # No host path is bind-mounted; Docker Desktop file sharing is irrelevant.
     assert "volumes" not in create_kwargs
 
-    (destination, archive), = client.copied_archives
+    ((destination, archive),) = client.copied_archives
     assert destination == "/"
     with tarfile.open(fileobj=io.BytesIO(archive), mode="r") as tar:
         members = {member.name: member for member in tar.getmembers()}
@@ -121,9 +121,12 @@ def test_run_model_surfaces_container_error() -> None:
     container.remove.assert_called_once_with(force=True)
 
 
-def test_run_model_pulls_a_missing_image() -> None:
+def test_run_model_pulls_a_missing_image_with_progress() -> None:
     client = _client_returning(json.dumps(PAYLOAD).encode("utf-8"))
     client.images.get.side_effect = ImageNotFound("missing")
+    client.api.pull.return_value = [
+        {"id": "layer", "status": "Downloading", "progressDetail": {"current": 1}}
+    ]
 
     run_model(
         example_wav_path(),
@@ -132,7 +135,33 @@ def test_run_model_pulls_a_missing_image() -> None:
         client=client,
     )
 
-    client.images.pull.assert_called_once_with(DEFAULT_IMAGE)
+    repository, digest = DEFAULT_IMAGE.split("@")
+    client.api.pull.assert_called_once_with(
+        repository,
+        tag=digest,
+        platform=CONTAINER_PLATFORM,
+        stream=True,
+        decode=True,
+    )
+    client.images.pull.assert_not_called()
+
+
+def test_run_model_pulls_without_progress_when_disabled() -> None:
+    client = _client_returning(json.dumps(PAYLOAD).encode("utf-8"))
+    client.images.get.side_effect = ImageNotFound("missing")
+
+    run_model(
+        example_wav_path(),
+        local_decay_sec=[0.1],
+        global_decay_sec=[1.0],
+        client=client,
+        show_progress=False,
+    )
+
+    client.images.pull.assert_called_once_with(
+        DEFAULT_IMAGE, platform=CONTAINER_PLATFORM
+    )
+    client.api.pull.assert_not_called()
 
 
 def test_run_model_wraps_image_lookup_errors() -> None:
@@ -190,7 +219,7 @@ def test_run_model_rejects_missing_input(tmp_path: Path) -> None:
 def test_run_model_wraps_pull_failures() -> None:
     client = MagicMock()
     client.images.get.side_effect = ImageNotFound("missing")
-    client.images.pull.side_effect = APIError("pull denied")
+    client.api.pull.side_effect = APIError("pull denied")
 
     with pytest.raises(Leman2000DockerError, match="about 1 GB"):
         run_model(

@@ -65,6 +65,7 @@ def leman2000(
     docker_image: str = DEFAULT_IMAGE,
     docker_client: docker.DockerClient | None = None,
     docker_timeout_sec: float | None = DEFAULT_TIMEOUT_SEC,
+    show_progress: bool = True,
 ) -> Leman2000Result:
     """Run Leman's (2000) tonal contextuality model on a WAV file.
 
@@ -101,6 +102,9 @@ def leman2000(
         Optional Docker SDK client. Useful for testing.
     docker_timeout_sec :
         Maximum container runtime in seconds. Set to None for no timeout.
+    show_progress :
+        If True, report progress on standard error while the model image is
+        downloaded. The first download is about 1 GB compressed.
 
     Returns
     -------
@@ -130,6 +134,7 @@ def leman2000(
         image=docker_image,
         client=docker_client,
         timeout_sec=docker_timeout_sec,
+        show_progress=show_progress,
     )
 
     if not isinstance(raw, Mapping):

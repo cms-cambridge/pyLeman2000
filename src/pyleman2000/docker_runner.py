@@ -13,7 +13,10 @@ from typing import Any, BinaryIO, Sequence
 import docker
 from docker.errors import APIError, DockerException, ImageNotFound, NotFound
 from docker.models.containers import Container
+from docker.utils import parse_repository_tag
 from requests.exceptions import Timeout
+
+from pyleman2000.progress import PullProgress
 
 DEFAULT_IMAGE = (
     "ghcr.io/pmcharrison/leman_2000"
@@ -33,22 +36,56 @@ def _format_decay_list(values: Sequence[float]) -> str:
     return ",".join(str(float(v)) for v in values)
 
 
-def _ensure_image(client: docker.DockerClient, image: str) -> None:
+def _pull_error(image: str, detail: object) -> Leman2000DockerError:
+    return Leman2000DockerError(
+        f"Failed to pull Docker image {image!r}. The first download "
+        "is about 1 GB compressed and may take several minutes. "
+        f"Underlying error: {detail}"
+    )
+
+
+def _pull_image(
+    client: docker.DockerClient, image: str, *, show_progress: bool
+) -> None:
+    if not show_progress:
+        client.images.pull(image, platform=CONTAINER_PLATFORM)
+        return
+
+    repository, tag = parse_repository_tag(image)
+    events = client.api.pull(
+        repository,
+        tag=tag or "latest",
+        platform=CONTAINER_PLATFORM,
+        stream=True,
+        decode=True,
+    )
+    progress = PullProgress(image)
+    try:
+        for event in events:
+            if isinstance(event, dict) and event.get("error"):
+                raise _pull_error(image, event["error"])
+            progress.update(event)
+    finally:
+        progress.close()
+
+
+def _ensure_image(
+    client: docker.DockerClient, image: str, *, show_progress: bool
+) -> None:
     try:
         client.images.get(image)
+        return
     except ImageNotFound:
-        try:
-            client.images.pull(image)
-        except APIError as exc:
-            raise Leman2000DockerError(
-                f"Failed to pull Docker image {image!r}. The first download "
-                "is about 1 GB compressed and may take several minutes. "
-                f"Underlying error: {exc}"
-            ) from exc
+        pass
     except DockerException as exc:
         raise Leman2000DockerError(
             f"Failed to inspect Docker image {image!r}: {exc}"
         ) from exc
+
+    try:
+        _pull_image(client, image, show_progress=show_progress)
+    except APIError as exc:
+        raise _pull_error(image, exc) from exc
 
 
 def _build_input_archive(input_file: Path) -> BinaryIO:
@@ -120,6 +157,7 @@ def run_model(
     image: str = DEFAULT_IMAGE,
     client: docker.DockerClient | None = None,
     timeout_sec: float | None = DEFAULT_TIMEOUT_SEC,
+    show_progress: bool = True,
 ) -> dict[str, Any]:
     """Run the compiled model in Docker and return parsed JSON.
 
@@ -143,6 +181,8 @@ def run_model(
         Optional Docker client. Created with :func:`docker.from_env` if omitted.
     timeout_sec :
         Maximum container runtime in seconds. Set to None for no timeout.
+    show_progress :
+        If True, report image download progress on standard error.
 
     Returns
     -------
@@ -178,7 +218,7 @@ def run_model(
                 ) from exc
 
         try:
-            _ensure_image(client_obj, image)
+            _ensure_image(client_obj, image, show_progress=show_progress)
         except Leman2000DockerError:
             raise
         except DockerException as exc:
