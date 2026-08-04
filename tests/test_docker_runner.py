@@ -269,3 +269,36 @@ def test_run_model_allows_unlimited_timeout() -> None:
 
     assert result == PAYLOAD
     container.wait.assert_called_once_with()
+
+
+def test_run_model_reports_run_progress(capsys: pytest.CaptureFixture[str]) -> None:
+    client = _client_returning(json.dumps(PAYLOAD).encode("utf-8"))
+
+    run_model(
+        example_wav_path(),
+        local_decay_sec=[0.1],
+        global_decay_sec=[1.0],
+        client=client,
+        show_progress=True,
+    )
+
+    err = capsys.readouterr().err
+    assert "Preparing Leman (2000) container" in err
+    assert "Running Leman (2000) model:" in err
+    assert "Reading Leman (2000) results" in err
+
+
+def test_run_model_is_quiet_when_progress_disabled(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    client = _client_returning(json.dumps(PAYLOAD).encode("utf-8"))
+
+    run_model(
+        example_wav_path(),
+        local_decay_sec=[0.1],
+        global_decay_sec=[1.0],
+        client=client,
+        show_progress=False,
+    )
+
+    assert capsys.readouterr().err == ""

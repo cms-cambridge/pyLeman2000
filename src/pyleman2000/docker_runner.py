@@ -6,6 +6,8 @@ import json
 import math
 import tarfile
 import tempfile
+import threading
+import time
 import uuid
 from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
@@ -18,7 +20,7 @@ from docker.models.containers import Container
 from docker.utils import parse_repository_tag
 from requests.exceptions import Timeout
 
-from pyleman2000.progress import PullProgress
+from pyleman2000.progress import PullProgress, RunProgress
 
 DEFAULT_IMAGE = (
     "ghcr.io/pmcharrison/leman_2000"
@@ -150,8 +152,19 @@ def _build_input_archive(input_file: Path) -> BinaryIO:
         raise
 
 
+def _heartbeat_during_wait(
+    progress: RunProgress, stop: threading.Event, started_at: float
+) -> None:
+    """Update ``progress`` with elapsed runtime until ``stop`` is set."""
+    while not stop.wait(1.0):
+        progress.running(time.monotonic() - started_at)
+
+
 def _wait_for_container(
-    container: Container, timeout_sec: float | None
+    container: Container,
+    timeout_sec: float | None,
+    *,
+    progress: RunProgress | None = None,
 ) -> None:
     """Block until ``container`` exits successfully.
 
@@ -160,19 +173,38 @@ def _wait_for_container(
     Leman2000DockerError
         If the wait times out or the container exits with a non-zero status.
     """
+    stop = threading.Event()
+    heartbeat: threading.Thread | None = None
+    if progress is not None:
+        started_at = time.monotonic()
+        progress.running(0.0)
+        heartbeat = threading.Thread(
+            target=_heartbeat_during_wait,
+            args=(progress, stop, started_at),
+            daemon=True,
+        )
+        heartbeat.start()
+
     try:
-        wait_result = (
-            container.wait()
-            if timeout_sec is None
-            else container.wait(timeout=timeout_sec)
-        )
-    except Timeout as exc:
-        duration = (
-            f" after {timeout_sec:g} seconds" if timeout_sec is not None else ""
-        )
-        raise Leman2000DockerError(
-            f"The Leman (2000) Docker container timed out{duration}."
-        ) from exc
+        try:
+            wait_result = (
+                container.wait()
+                if timeout_sec is None
+                else container.wait(timeout=timeout_sec)
+            )
+        except Timeout as exc:
+            duration = (
+                f" after {timeout_sec:g} seconds"
+                if timeout_sec is not None
+                else ""
+            )
+            raise Leman2000DockerError(
+                f"The Leman (2000) Docker container timed out{duration}."
+            ) from exc
+    finally:
+        stop.set()
+        if heartbeat is not None:
+            heartbeat.join(timeout=2.0)
 
     exit_status = int(wait_result.get("StatusCode", -1))
     if exit_status == 0:
@@ -228,10 +260,14 @@ def _run_container(
     input_file: Path,
     output_path: str,
     timeout_sec: float | None,
+    show_progress: bool,
 ) -> dict[str, Any]:
     """Create a container, copy input in, run it, and copy JSON output out."""
     container = None
+    progress = RunProgress() if show_progress else None
     try:
+        if progress is not None:
+            progress.preparing()
         container = client.containers.create(
             image=image,
             command=list(command),
@@ -240,7 +276,9 @@ def _run_container(
         with _build_input_archive(input_file) as archive:
             container.put_archive("/", archive)
         container.start()
-        _wait_for_container(container, timeout_sec)
+        _wait_for_container(container, timeout_sec, progress=progress)
+        if progress is not None:
+            progress.reading()
         return _read_output_json(container, output_path)
     except ImageNotFound as exc:
         raise Leman2000DockerError(f"Docker image not found: {image!r}") from exc
@@ -249,6 +287,8 @@ def _run_container(
             f"Docker API error while running {image!r}: {exc}"
         ) from exc
     finally:
+        if progress is not None:
+            progress.close()
         if container is not None:
             try:
                 container.remove(force=True)
@@ -290,7 +330,7 @@ def run_model(
     timeout_sec :
         Maximum container runtime in seconds. Set to None for no timeout.
     show_progress :
-        If True, report image download progress on standard error.
+        If True, report image download and model-run status on standard error.
 
     Returns
     -------
@@ -336,4 +376,5 @@ def run_model(
             input_file=input_file,
             output_path=output_path,
             timeout_sec=timeout_sec,
+            show_progress=show_progress,
         )

@@ -19,8 +19,10 @@ This is a Python port of [`leman2000R`](https://github.com/pmcharrison/leman2000
   (`docker info` should succeed)
 - On first use, a reproducibly pinned `ghcr.io/pmcharrison/leman_2000` image is
   pulled (~1 GB compressed). That first pull can take several minutes; download
-  and extraction progress is reported on standard error, and can be silenced
-  with `leman2000(..., show_progress=False)`.
+  and extraction progress is reported on standard error. Subsequent runs also
+  report preparing / running / reading status (with an elapsed-time heartbeat
+  while the model executes). Silence both with
+  `leman2000(..., show_progress=False)`.
 
 Input and output files are copied in and out of the container rather than
 bind-mounted, so no Docker file sharing configuration is needed. Analyses work

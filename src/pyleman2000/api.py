@@ -104,7 +104,8 @@ def leman2000(
         Maximum container runtime in seconds. Set to None for no timeout.
     show_progress :
         If True, report progress on standard error while the model image is
-        downloaded. The first download is about 1 GB compressed.
+        downloaded and while the container runs. The first download is about
+        1 GB compressed.
 
     Returns
     -------

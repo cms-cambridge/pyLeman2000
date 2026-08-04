@@ -1,10 +1,10 @@
-"""Tests for the Docker image pull progress display."""
+"""Tests for the Docker image pull and model-run progress displays."""
 
 from __future__ import annotations
 
 import io
 
-from pyleman2000.progress import PullProgress, format_bytes
+from pyleman2000.progress import PullProgress, RunProgress, format_bytes
 
 
 class _Terminal(io.StringIO):
@@ -54,3 +54,43 @@ def test_progress_writes_periodic_lines_when_not_a_terminal() -> None:
     lines = stream.getvalue().splitlines()
     assert "\r" not in stream.getvalue()
     assert [line.split()[2] for line in lines] == ["0%", "25%", "50%", "100%"]
+
+
+def test_run_progress_rewrites_on_terminal(monkeypatch) -> None:
+    monkeypatch.setenv("COLUMNS", "200")
+    stream = _Terminal()
+    progress = RunProgress(stream, min_interval_sec=0)
+
+    progress.preparing()
+    progress.running(0)
+    progress.running(3)
+    progress.reading()
+    progress.close()
+
+    assert stream.getvalue().startswith("\r")
+    assert stream.getvalue().endswith("\n")
+    assert "Running Leman (2000) model: 3s" in stream.getvalue()
+    final = stream.getvalue().split("\r")[-1]
+    assert final.startswith("Reading Leman (2000) results")
+
+
+def test_run_progress_writes_stepped_lines_when_not_a_terminal() -> None:
+    stream = io.StringIO()
+    progress = RunProgress(stream, step_sec=5)
+
+    progress.preparing()
+    progress.running(0)
+    progress.running(2)
+    progress.running(5)
+    progress.running(9)
+    progress.running(10)
+    progress.reading()
+    progress.close()
+
+    assert stream.getvalue().splitlines() == [
+        "Preparing Leman (2000) container",
+        "Running Leman (2000) model: 0s",
+        "Running Leman (2000) model: 5s",
+        "Running Leman (2000) model: 10s",
+        "Reading Leman (2000) results",
+    ]
