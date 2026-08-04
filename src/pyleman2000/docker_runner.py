@@ -10,6 +10,8 @@ import threading
 import time
 import uuid
 from collections.abc import Iterator, Sequence
+from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import TimeoutError as FuturesTimeout
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, BinaryIO
@@ -29,11 +31,37 @@ DEFAULT_IMAGE = (
 CONTAINER_INPUT_PATH = "/input.wav"
 CONTAINER_OUTPUT_DIR = "/output"
 CONTAINER_PLATFORM = "linux/amd64"
+CONTAINER_ENTRYPOINT = "/leman_2000_docker.sh"
+WARM_KEEPALIVE_COMMAND = ["sleep", "infinity"]
 DEFAULT_TIMEOUT_SEC = 600.0
 
 
 class Leman2000DockerError(RuntimeError):
     """Raised when the Docker-backed model fails to run."""
+
+
+def _validate_timeout_sec(timeout_sec: float | None) -> float | None:
+    if timeout_sec is None:
+        return None
+    timeout_sec = float(timeout_sec)
+    if not math.isfinite(timeout_sec) or timeout_sec <= 0:
+        raise ValueError("timeout_sec must be a finite positive number or None")
+    return timeout_sec
+
+
+def _model_command(
+    output_path: str,
+    local_decay_sec: Sequence[float],
+    global_decay_sec: Sequence[float],
+    detail: int,
+) -> list[str]:
+    return [
+        CONTAINER_INPUT_PATH,
+        output_path,
+        _format_decay_list(local_decay_sec),
+        _format_decay_list(global_decay_sec),
+        str(int(detail)),
+    ]
 
 
 def _format_decay_list(values: Sequence[float]) -> str:
@@ -252,6 +280,214 @@ def _read_output_json(container: Container, container_path: str) -> dict[str, An
             ) from exc
 
 
+def _raise_exec_failure(exit_status: int, output: object) -> None:
+    if isinstance(output, (bytes, bytearray)):
+        detail = output.decode("utf-8", errors="replace")
+    else:
+        detail = str(output) if output is not None else ""
+    raise Leman2000DockerError(
+        "The Leman (2000) Docker container failed "
+        f"(exit status {exit_status})."
+        f"{(' stderr: ' + detail) if detail else ''}"
+    )
+
+
+def _exec_model(
+    container: Container,
+    command: Sequence[str],
+    timeout_sec: float | None,
+    *,
+    progress: RunProgress | None = None,
+) -> None:
+    """Run the model entrypoint inside an already-started container."""
+    stop = threading.Event()
+    heartbeat: threading.Thread | None = None
+    if progress is not None:
+        started_at = time.monotonic()
+        progress.running(0.0)
+        heartbeat = threading.Thread(
+            target=_heartbeat_during_wait,
+            args=(progress, stop, started_at),
+            daemon=True,
+        )
+        heartbeat.start()
+
+    full_command = [CONTAINER_ENTRYPOINT, *command]
+    try:
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            future = pool.submit(container.exec_run, full_command)
+            try:
+                if timeout_sec is None:
+                    exit_code, output = future.result()
+                else:
+                    exit_code, output = future.result(timeout=timeout_sec)
+            except FuturesTimeout as exc:
+                future.cancel()
+                duration = f" after {timeout_sec:g} seconds"
+                raise Leman2000DockerError(
+                    f"The Leman (2000) Docker container timed out{duration}."
+                ) from exc
+    finally:
+        stop.set()
+        if heartbeat is not None:
+            heartbeat.join(timeout=2.0)
+
+    if int(exit_code) != 0:
+        _raise_exec_failure(int(exit_code), output)
+
+
+class WarmModelRunner:
+    """Reuse one long-lived container across model runs via ``docker exec``.
+
+    The MATLAB Compiler Runtime still starts on every exec, but keeping the
+    container alive warms filesystem caches and typically speeds up later runs
+    on Apple Silicon (emulated amd64). Prefer this when analysing many files
+    in one process.
+    """
+
+    def __init__(
+        self,
+        *,
+        image: str = DEFAULT_IMAGE,
+        client: docker.DockerClient | None = None,
+        timeout_sec: float | None = DEFAULT_TIMEOUT_SEC,
+        show_progress: bool = True,
+    ) -> None:
+        self._image = image
+        self._client_arg = client
+        self._timeout_sec = _validate_timeout_sec(timeout_sec)
+        self._show_progress = show_progress
+        self._client: docker.DockerClient | None = None
+        self._owns_client = False
+        self._container: Container | None = None
+
+    def open(self) -> WarmModelRunner:
+        """Pull the image if needed and start the keepalive container."""
+        if self._container is not None:
+            return self
+
+        if self._client_arg is not None:
+            self._client = self._client_arg
+            self._owns_client = False
+        else:
+            try:
+                self._client = docker.from_env()
+            except DockerException as exc:
+                raise Leman2000DockerError(
+                    "pyLeman2000 could not connect to Docker. Install Docker "
+                    "Desktop or the Docker Engine, start the daemon, and "
+                    "verify that `docker info` succeeds. See the README "
+                    "Docker setup notes for platform-specific guidance "
+                    "(including Apple Silicon)."
+                ) from exc
+            self._owns_client = True
+
+        try:
+            _ensure_image(
+                self._client, self._image, show_progress=self._show_progress
+            )
+        except Leman2000DockerError:
+            self.close()
+            raise
+        except DockerException as exc:
+            self.close()
+            raise Leman2000DockerError(
+                f"Failed to prepare Docker image {self._image!r}. The first "
+                "pull is about 1 GB compressed and can take several minutes "
+                f"on a slow connection. Underlying error: {exc}"
+            ) from exc
+
+        try:
+            self._container = self._client.containers.create(
+                image=self._image,
+                entrypoint=WARM_KEEPALIVE_COMMAND,
+                platform=CONTAINER_PLATFORM,
+            )
+            self._container.start()
+        except ImageNotFound as exc:
+            self.close()
+            raise Leman2000DockerError(
+                f"Docker image not found: {self._image!r}"
+            ) from exc
+        except APIError as exc:
+            self.close()
+            raise Leman2000DockerError(
+                f"Docker API error while starting warm container for "
+                f"{self._image!r}: {exc}"
+            ) from exc
+        return self
+
+    def close(self) -> None:
+        """Stop and remove the keepalive container."""
+        container = self._container
+        self._container = None
+        if container is not None:
+            try:
+                container.remove(force=True)
+            except DockerException:
+                pass
+
+        if self._owns_client and self._client is not None:
+            try:
+                self._client.close()
+            except DockerException:
+                pass
+        self._client = None
+        self._owns_client = False
+
+    def __enter__(self) -> WarmModelRunner:
+        return self.open()
+
+    def __exit__(self, *exc_info: object) -> None:
+        self.close()
+
+    def run(
+        self,
+        input_file: Path,
+        local_decay_sec: Sequence[float],
+        global_decay_sec: Sequence[float],
+        *,
+        detail: int = 0,
+    ) -> dict[str, Any]:
+        """Copy input in, exec the model, and return parsed JSON."""
+        if self._container is None:
+            raise Leman2000DockerError(
+                "WarmModelRunner is not open. Use it as a context manager "
+                "or call open() before run()."
+            )
+
+        input_file = Path(input_file).resolve()
+        if not input_file.is_file():
+            raise FileNotFoundError(f"Input file not found: {input_file}")
+
+        output_path = f"{CONTAINER_OUTPUT_DIR}/{uuid.uuid4()}.json"
+        command = _model_command(
+            output_path, local_decay_sec, global_decay_sec, detail
+        )
+        progress = RunProgress() if self._show_progress else None
+        try:
+            if progress is not None:
+                progress.preparing()
+            with _build_input_archive(input_file) as archive:
+                self._container.put_archive("/", archive)
+            _exec_model(
+                self._container,
+                command,
+                self._timeout_sec,
+                progress=progress,
+            )
+            if progress is not None:
+                progress.reading()
+            return _read_output_json(self._container, output_path)
+        except APIError as exc:
+            raise Leman2000DockerError(
+                f"Docker API error while running {self._image!r}: {exc}"
+            ) from exc
+        finally:
+            if progress is not None:
+                progress.close()
+
+
 def _run_container(
     client: docker.DockerClient,
     *,
@@ -345,10 +581,7 @@ def run_model(
     input_file = Path(input_file).resolve()
     if not input_file.is_file():
         raise FileNotFoundError(f"Input file not found: {input_file}")
-    if timeout_sec is not None:
-        timeout_sec = float(timeout_sec)
-        if not math.isfinite(timeout_sec) or timeout_sec <= 0:
-            raise ValueError("timeout_sec must be a finite positive number or None")
+    timeout_sec = _validate_timeout_sec(timeout_sec)
 
     with _docker_client(client) as client_obj:
         try:
@@ -366,13 +599,9 @@ def run_model(
         return _run_container(
             client_obj,
             image=image,
-            command=[
-                CONTAINER_INPUT_PATH,
-                output_path,
-                _format_decay_list(local_decay_sec),
-                _format_decay_list(global_decay_sec),
-                str(int(detail)),
-            ],
+            command=_model_command(
+                output_path, local_decay_sec, global_decay_sec, detail
+            ),
             input_file=input_file,
             output_path=output_path,
             timeout_sec=timeout_sec,

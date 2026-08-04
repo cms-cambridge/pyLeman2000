@@ -19,6 +19,7 @@ from pyleman2000.docker_runner import (
     CONTAINER_PLATFORM,
     DEFAULT_IMAGE,
     Leman2000DockerError,
+    WarmModelRunner,
     run_model,
 )
 
@@ -302,3 +303,66 @@ def test_run_model_is_quiet_when_progress_disabled(
     )
 
     assert capsys.readouterr().err == ""
+
+
+def test_warm_runner_reuses_one_container_via_exec() -> None:
+    client = _client_returning(json.dumps(PAYLOAD).encode("utf-8"))
+    container = client.containers.create.return_value
+    container.exec_run.return_value = (0, b"")
+
+    with WarmModelRunner(client=client, show_progress=False) as runner:
+        first = runner.run(
+            example_wav_path(),
+            local_decay_sec=[0.1],
+            global_decay_sec=[1.0],
+        )
+        second = runner.run(
+            example_wav_path(),
+            local_decay_sec=[0.5],
+            global_decay_sec=[2.0],
+            detail=5,
+        )
+
+    assert first == PAYLOAD
+    assert second == PAYLOAD
+    client.containers.create.assert_called_once()
+    _, create_kwargs = client.containers.create.call_args
+    assert create_kwargs["entrypoint"] == ["sleep", "infinity"]
+    assert create_kwargs["platform"] == CONTAINER_PLATFORM
+    assert "command" not in create_kwargs
+    container.start.assert_called_once_with()
+    assert container.exec_run.call_count == 2
+    first_cmd = container.exec_run.call_args_list[0].args[0]
+    second_cmd = container.exec_run.call_args_list[1].args[0]
+    assert first_cmd[0] == "/leman_2000_docker.sh"
+    assert first_cmd[1] == CONTAINER_INPUT_PATH
+    assert first_cmd[3:] == ["0.1", "1.0", "0"]
+    assert second_cmd[3:] == ["0.5", "2.0", "5"]
+    container.wait.assert_not_called()
+    container.remove.assert_called_once_with(force=True)
+
+
+def test_warm_runner_surfaces_exec_errors() -> None:
+    client = _client_returning(b"")
+    container = client.containers.create.return_value
+    container.exec_run.return_value = (1, b"boom")
+
+    with WarmModelRunner(client=client, show_progress=False) as runner:
+        with pytest.raises(Leman2000DockerError, match="boom"):
+            runner.run(
+                example_wav_path(),
+                local_decay_sec=[0.1],
+                global_decay_sec=[1.0],
+            )
+
+    container.remove.assert_called_once_with(force=True)
+
+
+def test_warm_runner_requires_open() -> None:
+    runner = WarmModelRunner(client=MagicMock(), show_progress=False)
+    with pytest.raises(Leman2000DockerError, match="not open"):
+        runner.run(
+            example_wav_path(),
+            local_decay_sec=[0.1],
+            global_decay_sec=[1.0],
+        )

@@ -10,7 +10,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from pyleman2000 import Leman2000Result, example_wav_path, leman2000
+from pyleman2000 import Leman2000Result, Leman2000Session, example_wav_path, leman2000
 
 FIXTURE = Path(__file__).parent / "fixtures" / "sample_result.json"
 
@@ -244,3 +244,33 @@ def test_rejects_non_wav(tmp_path: Path) -> None:
 def test_rejects_missing_file(tmp_path: Path) -> None:
     with pytest.raises(FileNotFoundError):
         leman2000(tmp_path / "missing.wav", 0.1, 1.0)
+
+
+def test_session_reuses_warm_runner(raw_result: dict, tmp_path: Path) -> None:
+    wav = tmp_path / "tone.wav"
+    wav.write_bytes(example_wav_path().read_bytes())
+    runner = MagicMock()
+    runner.run.return_value = raw_result
+
+    with patch("pyleman2000.api.WarmModelRunner", return_value=runner):
+        with Leman2000Session(show_progress=False) as session:
+            first = session.run(
+                input_file=wav,
+                local_decay_sec=0.1,
+                global_decay_sec=1.0,
+            )
+            second = session.run(
+                input_file=wav,
+                local_decay_sec=[0.1, 0.5],
+                global_decay_sec=[1.0, 2.0],
+                windows=[(0.0, 0.1)],
+            )
+
+    assert isinstance(first, Leman2000Result)
+    assert isinstance(second, Leman2000Result)
+    runner.open.assert_called_once_with()
+    assert runner.run.call_count == 2
+    assert runner.run.call_args_list[0].kwargs["detail"] == 0
+    assert runner.run.call_args_list[1].kwargs["local_decay_sec"] == [0.1, 0.5]
+    assert second.windowed_local_global_comparison is not None
+    runner.close.assert_called_once_with()

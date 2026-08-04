@@ -32,7 +32,9 @@ not share by default (such as WAV files inside `site-packages`).
 > **Note:** The underlying image targets `linux/amd64`. On Apple Silicon, enable
 > Docker Desktop's amd64/Rosetta or QEMU emulation, then verify with
 > `docker run --platform=linux/amd64 --rm hello-world`. Emulated runs are
-> slower than native amd64 hardware.
+> slower than native amd64 hardware. Most of the per-call cost is MATLAB
+> Runtime startup (several seconds even for short WAVs). For many analyses in
+> one process, reuse a warm container with `Leman2000Session` (see below).
 
 ## Installation
 
@@ -94,6 +96,30 @@ result.audio_length_sec, result.num_channels, result.sample_rate
 ```text
 (0.3707936508, 1, 44100.0)
 ```
+
+### Repeated analyses (warm container)
+
+Each one-shot `leman2000(...)` call starts a fresh container and pays MATLAB
+Runtime startup again. When analysing many files, keep one container alive:
+
+```python
+from pyleman2000 import Leman2000Session, example_wav_path
+
+with Leman2000Session() as session:
+    first = session.run(
+        input_file=example_wav_path(),
+        local_decay_sec=0.1,
+        global_decay_sec=1.0,
+    )
+    second = session.run(
+        input_file=example_wav_path(),
+        local_decay_sec=[0.1, 0.5],
+        global_decay_sec=[1.0, 2.0],
+    )
+```
+
+The Runtime still starts on every `run`, but later calls in the same session
+are typically faster (filesystem caches stay warm), especially on Apple Silicon.
 
 ```python
 result.local_global_comparison.head()

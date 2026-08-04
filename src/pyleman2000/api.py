@@ -11,6 +11,7 @@ import numpy as np
 from pyleman2000.docker_runner import (
     DEFAULT_IMAGE,
     DEFAULT_TIMEOUT_SEC,
+    WarmModelRunner,
     run_model,
 )
 from pyleman2000.formatters import (
@@ -53,66 +54,15 @@ def _as_float_sequence(values: float | Sequence[float], name: str) -> list[float
     return result
 
 
-def leman2000(
+def _prepare_analysis_args(
     input_file: str | Path,
     local_decay_sec: float | Sequence[float],
     global_decay_sec: float | Sequence[float],
-    windows: Sequence[Sequence[float]] | None = None,
-    windowing_function: Callable[[np.ndarray], float] = np.mean,
-    keep_auditory_nerve: bool = False,
-    keep_periodicity_pitch: bool = False,
-    *,
-    docker_image: str = DEFAULT_IMAGE,
-    docker_client: docker.DockerClient | None = None,
-    docker_timeout_sec: float | None = DEFAULT_TIMEOUT_SEC,
-    show_progress: bool = True,
-) -> Leman2000Result:
-    """Run Leman's (2000) tonal contextuality model on a WAV file.
-
-    This model was published in a 2000 Music Perception paper, and was shown
-    to provide a psychoacoustic account of the Krumhansl-Kessler probe-tone
-    data. Computation is performed by a Dockerised MATLAB/IPEM binary.
-
-    Parameters
-    ----------
-    input_file :
-        Path to the input file (WAV format, ``.wav`` extension).
-    local_decay_sec :
-        Local decay parameter(s) in seconds. If a sequence is given, results
-        are produced for all combinations with ``global_decay_sec``.
-    global_decay_sec :
-        Global decay parameter(s) in seconds.
-    windows :
-        Optional time windows for averaging. Each window is ``(start, end)``
-        in seconds. Both endpoints are included (intentional divergence from
-        ``leman2000R``, which uses half-open ``[start, end)``). ``window_id``
-        values in the returned table are 1-based, and rows are ordered
-        window-major.
-    windowing_function :
-        Reduction used within each window. Defaults to :func:`numpy.mean`.
-    keep_auditory_nerve :
-        If True, include auditory nerve simulation outputs. These can be
-        large nested dictionaries from the MATLAB binary.
-    keep_periodicity_pitch :
-        If True, include periodicity pitch outputs. These can be large
-        nested dictionaries from the MATLAB binary.
-    docker_image :
-        Docker image providing the compiled model.
-    docker_client :
-        Optional Docker SDK client. Useful for testing.
-    docker_timeout_sec :
-        Maximum container runtime in seconds. Set to None for no timeout.
-    show_progress :
-        If True, report progress on standard error while the model image is
-        downloaded and while the container runs. The first download is about
-        1 GB compressed.
-
-    Returns
-    -------
-    Leman2000Result
-        Structured model output, including a long-form local/global
-        comparison DataFrame and optional windowed summaries.
-    """
+    windows: Sequence[Sequence[float]] | None,
+    windowing_function: Callable[[np.ndarray], float],
+    keep_auditory_nerve: bool,
+    keep_periodicity_pitch: bool,
+) -> tuple[Path, list[float], list[float], int]:
     path = Path(input_file).expanduser().resolve()
     if path.suffix.lower() != ".wav":
         raise ValueError(f"input_file must be a .wav file, got {path.name!r}")
@@ -127,17 +77,18 @@ def leman2000(
         raise TypeError("windowing_function must be callable")
 
     detail = 5 if (keep_auditory_nerve or keep_periodicity_pitch) else 0
-    raw = run_model(
-        input_file=path,
-        local_decay_sec=local_vals,
-        global_decay_sec=global_vals,
-        detail=detail,
-        image=docker_image,
-        client=docker_client,
-        timeout_sec=docker_timeout_sec,
-        show_progress=show_progress,
-    )
+    return path, local_vals, global_vals, detail
 
+
+def _result_from_raw(
+    raw: object,
+    *,
+    windows: Sequence[Sequence[float]] | None,
+    windowing_function: Callable[[np.ndarray], float],
+    keep_auditory_nerve: bool,
+    keep_periodicity_pitch: bool,
+    docker_image: str,
+) -> Leman2000Result:
     if not isinstance(raw, Mapping):
         raise ValueError("Model output must be a JSON object")
     required = {
@@ -189,3 +140,176 @@ def leman2000(
         auditory_nerve=auditory_nerve,
         periodicity_pitch=periodicity_pitch,
     )
+
+
+def leman2000(
+    input_file: str | Path,
+    local_decay_sec: float | Sequence[float],
+    global_decay_sec: float | Sequence[float],
+    windows: Sequence[Sequence[float]] | None = None,
+    windowing_function: Callable[[np.ndarray], float] = np.mean,
+    keep_auditory_nerve: bool = False,
+    keep_periodicity_pitch: bool = False,
+    *,
+    docker_image: str = DEFAULT_IMAGE,
+    docker_client: docker.DockerClient | None = None,
+    docker_timeout_sec: float | None = DEFAULT_TIMEOUT_SEC,
+    show_progress: bool = True,
+) -> Leman2000Result:
+    """Run Leman's (2000) tonal contextuality model on a WAV file.
+
+    This model was published in a 2000 Music Perception paper, and was shown
+    to provide a psychoacoustic account of the Krumhansl-Kessler probe-tone
+    data. Computation is performed by a Dockerised MATLAB/IPEM binary.
+
+    For repeated analyses in one process, prefer :class:`Leman2000Session`,
+    which reuses a warm container and is typically faster after the first run.
+
+    Parameters
+    ----------
+    input_file :
+        Path to the input file (WAV format, ``.wav`` extension).
+    local_decay_sec :
+        Local decay parameter(s) in seconds. If a sequence is given, results
+        are produced for all combinations with ``global_decay_sec``.
+    global_decay_sec :
+        Global decay parameter(s) in seconds.
+    windows :
+        Optional time windows for averaging. Each window is ``(start, end)``
+        in seconds. Both endpoints are included (intentional divergence from
+        ``leman2000R``, which uses half-open ``[start, end)``). ``window_id``
+        values in the returned table are 1-based, and rows are ordered
+        window-major.
+    windowing_function :
+        Reduction used within each window. Defaults to :func:`numpy.mean`.
+    keep_auditory_nerve :
+        If True, include auditory nerve simulation outputs. These can be
+        large nested dictionaries from the MATLAB binary.
+    keep_periodicity_pitch :
+        If True, include periodicity pitch outputs. These can be large
+        nested dictionaries from the MATLAB binary.
+    docker_image :
+        Docker image providing the compiled model.
+    docker_client :
+        Optional Docker SDK client. Useful for testing.
+    docker_timeout_sec :
+        Maximum container runtime in seconds. Set to None for no timeout.
+    show_progress :
+        If True, report progress on standard error while the model image is
+        downloaded and while the container runs. The first download is about
+        1 GB compressed.
+
+    Returns
+    -------
+    Leman2000Result
+        Structured model output, including a long-form local/global
+        comparison DataFrame and optional windowed summaries.
+    """
+    path, local_vals, global_vals, detail = _prepare_analysis_args(
+        input_file,
+        local_decay_sec,
+        global_decay_sec,
+        windows,
+        windowing_function,
+        keep_auditory_nerve,
+        keep_periodicity_pitch,
+    )
+    raw = run_model(
+        input_file=path,
+        local_decay_sec=local_vals,
+        global_decay_sec=global_vals,
+        detail=detail,
+        image=docker_image,
+        client=docker_client,
+        timeout_sec=docker_timeout_sec,
+        show_progress=show_progress,
+    )
+    return _result_from_raw(
+        raw,
+        windows=windows,
+        windowing_function=windowing_function,
+        keep_auditory_nerve=keep_auditory_nerve,
+        keep_periodicity_pitch=keep_periodicity_pitch,
+        docker_image=docker_image,
+    )
+
+
+class Leman2000Session:
+    """Reuse one Docker container across multiple model runs.
+
+    The underlying MATLAB Runtime still starts on every analysis, but keeping
+    the container alive warms filesystem caches. On Apple Silicon (emulated
+    amd64) later runs in the same session are typically faster than calling
+    :func:`leman2000` repeatedly.
+
+    Examples
+    --------
+    >>> with Leman2000Session() as session:
+    ...     result = session.run(
+    ...         input_file=example_wav_path(),
+    ...         local_decay_sec=0.1,
+    ...         global_decay_sec=1.0,
+    ...     )
+    """
+
+    def __init__(
+        self,
+        *,
+        docker_image: str = DEFAULT_IMAGE,
+        docker_client: docker.DockerClient | None = None,
+        docker_timeout_sec: float | None = DEFAULT_TIMEOUT_SEC,
+        show_progress: bool = True,
+    ) -> None:
+        self._docker_image = docker_image
+        self._runner = WarmModelRunner(
+            image=docker_image,
+            client=docker_client,
+            timeout_sec=docker_timeout_sec,
+            show_progress=show_progress,
+        )
+
+    def __enter__(self) -> Leman2000Session:
+        self._runner.open()
+        return self
+
+    def __exit__(self, *exc_info: object) -> None:
+        self._runner.close()
+
+    def run(
+        self,
+        input_file: str | Path,
+        local_decay_sec: float | Sequence[float],
+        global_decay_sec: float | Sequence[float],
+        windows: Sequence[Sequence[float]] | None = None,
+        windowing_function: Callable[[np.ndarray], float] = np.mean,
+        keep_auditory_nerve: bool = False,
+        keep_periodicity_pitch: bool = False,
+    ) -> Leman2000Result:
+        """Run the model on one WAV file using the warm container.
+
+        Parameters match :func:`leman2000` analysis arguments (excluding
+        Docker connection options, which are set on the session).
+        """
+        path, local_vals, global_vals, detail = _prepare_analysis_args(
+            input_file,
+            local_decay_sec,
+            global_decay_sec,
+            windows,
+            windowing_function,
+            keep_auditory_nerve,
+            keep_periodicity_pitch,
+        )
+        raw = self._runner.run(
+            input_file=path,
+            local_decay_sec=local_vals,
+            global_decay_sec=global_vals,
+            detail=detail,
+        )
+        return _result_from_raw(
+            raw,
+            windows=windows,
+            windowing_function=windowing_function,
+            keep_auditory_nerve=keep_auditory_nerve,
+            keep_periodicity_pitch=keep_periodicity_pitch,
+            docker_image=self._docker_image,
+        )
