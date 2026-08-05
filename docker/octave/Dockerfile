@@ -18,7 +18,7 @@ USER root
 
 ARG IPEM_REPO=https://github.com/cms-cambridge/IPEMToolbox.git
 # Pin to the Octave-compat fork revision (update when merging toolbox PRs).
-ARG IPEM_REF=fc2dc4f9dbcd9df50da16a5e1a228284e9d81cd0
+ARG IPEM_REF=052b79fa984a7b02808f1306cc201d5b0767a7a3
 
 ENV DEBIAN_FRONTEND=noninteractive \
     OCTAVE_HISTFILE=/tmp/octave-history \
