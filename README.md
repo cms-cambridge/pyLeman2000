@@ -89,6 +89,7 @@ Octave uses a MATLAB-compatible `resample` shim inside the toolbox fork. On
 44.1 kHz input, running correlations typically match the MATLAB backend to
 about `3e-6` (not `1e-12`). Feed 22.05 kHz audio if you need near-exact
 cross-backend agreement.
+
 ## Choosing parameters
 
 There is not much clarity in the literature on which local/global decay
