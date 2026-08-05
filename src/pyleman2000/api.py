@@ -160,7 +160,9 @@ def leman2000(
 
     This model was published in a 2000 Music Perception paper, and was shown
     to provide a psychoacoustic account of the Krumhansl-Kessler probe-tone
-    data. Computation is performed by a Dockerised MATLAB/IPEM binary.
+    data. Computation runs in Docker: the default image is a compiled
+    MATLAB/IPEM binary; pass ``docker_image=DEFAULT_OCTAVE_IMAGE`` for the
+    license-free Octave backend (see ``docker/octave/``).
 
     For repeated analyses in one process, prefer :class:`Leman2000Session`,
     which reuses a warm container and is typically faster after the first run.
