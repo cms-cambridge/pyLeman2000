@@ -44,4 +44,6 @@ def test_leman2000_end_to_end() -> None:
     first_rows = result.local_global_comparison.groupby(
         ["local_decay_sec", "global_decay_sec"], sort=False
     ).first()
-    assert (first_rows["running_correlation"] == 1.0).all()
+    assert (
+        first_rows["running_correlation"].apply(lambda x: math.isclose(x, 1.0, abs_tol=1e-12))
+    ).all()
