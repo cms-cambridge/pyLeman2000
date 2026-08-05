@@ -1,4 +1,4 @@
-"""Docker client helpers for running the compiled Leman (2000) model."""
+"""Docker client helpers for running the Leman (2000) Octave model."""
 
 from __future__ import annotations
 
@@ -24,20 +24,21 @@ from requests.exceptions import Timeout
 
 from pyleman2000.progress import PullProgress, RunProgress
 
-DEFAULT_IMAGE = (
-    "ghcr.io/pmcharrison/leman_2000"
-    "@sha256:08d5ce84b9844954473832af65188f8f56fdfc8bcc3c64e0307e532a062e2442"
-)
-# License-free Octave backend built from cms-cambridge/IPEMToolbox (see
+# License-free Octave image built from cms-cambridge/IPEMToolbox (see
 # docker/octave/Dockerfile). Build locally with:
-#   docker build -f docker/octave/Dockerfile -t pyleman2000-octave:dev docker/octave
-DEFAULT_OCTAVE_IMAGE = "pyleman2000-octave:dev"
+#   ./scripts/build_octave_image.sh
+DEFAULT_IMAGE = "pyleman2000-octave:dev"
 CONTAINER_INPUT_PATH = "/input.wav"
 CONTAINER_OUTPUT_DIR = "/output"
 CONTAINER_PLATFORM = "linux/amd64"
 CONTAINER_ENTRYPOINT = "/leman_2000_docker.sh"
 WARM_KEEPALIVE_COMMAND = ["sleep", "infinity"]
 DEFAULT_TIMEOUT_SEC = 600.0
+_BUILD_IMAGE_HINT = (
+    "Build it from this repository with:\n"
+    "  ./scripts/build_octave_image.sh\n"
+    "See docker/octave/ and the README for details."
+)
 
 
 class Leman2000DockerError(RuntimeError):
@@ -72,10 +73,23 @@ def _format_decay_list(values: Sequence[float]) -> str:
     return ",".join(str(float(v)) for v in values)
 
 
+def _is_local_build_image(image: str) -> bool:
+    """Return True for images that must be built locally, not pulled."""
+    name = image.split("@", 1)[0]
+    repository, _tag = parse_repository_tag(name)
+    # Hub-style names like "ubuntu" have no slash; our image is local-only.
+    return repository == "pyleman2000-octave" or image == DEFAULT_IMAGE
+
+
+def _missing_local_image_error(image: str) -> Leman2000DockerError:
+    return Leman2000DockerError(
+        f"Docker image {image!r} is not available locally. {_BUILD_IMAGE_HINT}"
+    )
+
+
 def _pull_error(image: str, detail: object) -> Leman2000DockerError:
     return Leman2000DockerError(
-        f"Failed to pull Docker image {image!r}. The first download "
-        "is about 1 GB compressed and may take several minutes. "
+        f"Failed to pull Docker image {image!r}. "
         f"Underlying error: {detail}"
     )
 
@@ -117,6 +131,9 @@ def _ensure_image(
         raise Leman2000DockerError(
             f"Failed to inspect Docker image {image!r}: {exc}"
         ) from exc
+
+    if _is_local_build_image(image):
+        raise _missing_local_image_error(image)
 
     try:
         _pull_image(client, image, show_progress=show_progress)
@@ -343,10 +360,9 @@ def _exec_model(
 class WarmModelRunner:
     """Reuse one long-lived container across model runs via ``docker exec``.
 
-    The MATLAB Compiler Runtime still starts on every exec, but keeping the
-    container alive warms filesystem caches and typically speeds up later runs
-    on Apple Silicon (emulated amd64). Prefer this when analysing many files
-    in one process.
+    Octave still starts on every exec, but keeping the container alive warms
+    filesystem caches and typically speeds up later runs on Apple Silicon
+    (emulated amd64). Prefer this when analysing many files in one process.
     """
 
     def __init__(
@@ -396,9 +412,8 @@ class WarmModelRunner:
         except DockerException as exc:
             self.close()
             raise Leman2000DockerError(
-                f"Failed to prepare Docker image {self._image!r}. The first "
-                "pull is about 1 GB compressed and can take several minutes "
-                f"on a slow connection. Underlying error: {exc}"
+                f"Failed to prepare Docker image {self._image!r}. "
+                f"Underlying error: {exc}"
             ) from exc
 
         try:
@@ -547,7 +562,7 @@ def run_model(
     timeout_sec: float | None = DEFAULT_TIMEOUT_SEC,
     show_progress: bool = True,
 ) -> dict[str, Any]:
-    """Run the compiled model in Docker and return parsed JSON.
+    """Run the Octave model in Docker and return parsed JSON.
 
     The input file is copied into the container and the output is copied back
     out again, so no host directory needs to be shared with Docker.
@@ -561,16 +576,18 @@ def run_model(
     global_decay_sec :
         Global decay parameter values in seconds.
     detail :
-        Detail level forwarded to the MATLAB binary. Values ``> 1`` include
-        auditory nerve and periodicity pitch images.
+        Detail level forwarded to the model. Values ``> 1`` include auditory
+        nerve and periodicity pitch images.
     image :
-        Docker image name.
+        Docker image name. Defaults to :data:`DEFAULT_IMAGE`, which must be
+        built locally (see ``scripts/build_octave_image.sh``).
     client :
         Optional Docker client. Created with :func:`docker.from_env` if omitted.
     timeout_sec :
         Maximum container runtime in seconds. Set to None for no timeout.
     show_progress :
-        If True, report image download and model-run status on standard error.
+        If True, report image download (for pullable images) and model-run
+        status on standard error.
 
     Returns
     -------
@@ -580,7 +597,8 @@ def run_model(
     Raises
     ------
     Leman2000DockerError
-        If Docker is unavailable or the container exits unsuccessfully.
+        If Docker is unavailable, the default image has not been built, or the
+        container exits unsuccessfully.
     """
     input_file = Path(input_file).resolve()
     if not input_file.is_file():
@@ -594,9 +612,8 @@ def run_model(
             raise
         except DockerException as exc:
             raise Leman2000DockerError(
-                f"Failed to prepare Docker image {image!r}. The first pull "
-                "is about 1 GB compressed and can take several minutes on a "
-                f"slow connection. Underlying error: {exc}"
+                f"Failed to prepare Docker image {image!r}. "
+                f"Underlying error: {exc}"
             ) from exc
 
         output_path = f"{CONTAINER_OUTPUT_DIR}/{uuid.uuid4()}.json"

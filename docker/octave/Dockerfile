@@ -1,14 +1,13 @@
 # Leman (2000) Octave backend for pyLeman2000.
 #
 # Builds a license-free image from the Octave-compatible IPEM Toolbox fork.
-# The container entrypoint matches the MATLAB MCR image CLI so
-# pyleman2000.docker_runner can use either backend unchanged:
+# The container entrypoint is:
 #
 #   /leman_2000_docker.sh <input.wav> <output.json> <local_csv> <global_csv> <detail>
 #
 # Build (from the pyLeman2000 repository root):
 #
-#   docker build -f docker/octave/Dockerfile -t pyleman2000-octave:dev docker/octave
+#   ./scripts/build_octave_image.sh
 #
 # Pin IPEM_REF to a commit SHA of cms-cambridge/IPEMToolbox for reproducibility.
 

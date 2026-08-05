@@ -1,7 +1,7 @@
 function leman_2000(in_file, out_file, local_decay_sec, global_decay_sec, detail)
-% Octave port of pmcharrison/leman_2000.m for the pyLeman2000 Docker backend.
+% Octave implementation of Leman (2000) for the pyLeman2000 Docker backend.
 %
-% Writes JSON with the same top-level schema as the MATLAB MCR binary:
+% Writes JSON with top-level fields:
 %   audio_length_sec, num_channels, sample_rate,
 %   local_global_comparison[{local_decay_sec, global_decay_sec, running_correlation}],
 %   and optionally auditory_nerve / periodicity_pitch when detail > 1.

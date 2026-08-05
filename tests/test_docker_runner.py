@@ -128,15 +128,17 @@ def test_run_model_pulls_a_missing_image_with_progress() -> None:
     client.api.pull.return_value = [
         {"id": "layer", "status": "Downloading", "progressDetail": {"current": 1}}
     ]
+    remote_image = "ghcr.io/example/leman@sha256:abc"
 
     run_model(
         example_wav_path(),
         local_decay_sec=[0.1],
         global_decay_sec=[1.0],
+        image=remote_image,
         client=client,
     )
 
-    repository, digest = DEFAULT_IMAGE.split("@")
+    repository, digest = remote_image.split("@")
     client.api.pull.assert_called_once_with(
         repository,
         tag=digest,
@@ -150,18 +152,36 @@ def test_run_model_pulls_a_missing_image_with_progress() -> None:
 def test_run_model_pulls_without_progress_when_disabled() -> None:
     client = _client_returning(json.dumps(PAYLOAD).encode("utf-8"))
     client.images.get.side_effect = ImageNotFound("missing")
+    remote_image = "ghcr.io/example/leman:latest"
 
     run_model(
         example_wav_path(),
         local_decay_sec=[0.1],
         global_decay_sec=[1.0],
+        image=remote_image,
         client=client,
         show_progress=False,
     )
 
     client.images.pull.assert_called_once_with(
-        DEFAULT_IMAGE, platform=CONTAINER_PLATFORM
+        remote_image, platform=CONTAINER_PLATFORM
     )
+    client.api.pull.assert_not_called()
+
+
+def test_run_model_requires_local_build_for_default_image() -> None:
+    client = MagicMock()
+    client.images.get.side_effect = ImageNotFound("missing")
+
+    with pytest.raises(Leman2000DockerError, match="build_octave_image"):
+        run_model(
+            example_wav_path(),
+            local_decay_sec=[0.1],
+            global_decay_sec=[1.0],
+            client=client,
+        )
+
+    client.images.pull.assert_not_called()
     client.api.pull.assert_not_called()
 
 
@@ -222,11 +242,12 @@ def test_run_model_wraps_pull_failures() -> None:
     client.images.get.side_effect = ImageNotFound("missing")
     client.api.pull.side_effect = APIError("pull denied")
 
-    with pytest.raises(Leman2000DockerError, match="about 1 GB"):
+    with pytest.raises(Leman2000DockerError, match="Failed to pull"):
         run_model(
             example_wav_path(),
             local_decay_sec=[0.1],
             global_decay_sec=[1.0],
+            image="ghcr.io/example/leman:latest",
             client=client,
         )
 

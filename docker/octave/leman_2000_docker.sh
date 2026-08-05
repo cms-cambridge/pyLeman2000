@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Entrypoint compatible with the MATLAB MCR image CLI used by docker_runner.
+# Container entrypoint for the Octave Leman (2000) model.
 set -euo pipefail
 
 if [[ $# -lt 5 ]]; then

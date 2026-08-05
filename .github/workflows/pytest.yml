@@ -81,10 +81,8 @@ jobs:
       - name: Install package
         run: pip install ".[dev]"
 
-      - name: Pull Leman 2000 Docker image
-        run: |
-          docker pull "$(python -c \
-            'from pyleman2000.docker_runner import DEFAULT_IMAGE; print(DEFAULT_IMAGE)')"
+      - name: Build Octave model image
+        run: ./scripts/build_octave_image.sh
 
       - name: Run integration tests
         run: pytest -v -m integration

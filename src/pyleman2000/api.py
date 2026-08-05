@@ -160,9 +160,9 @@ def leman2000(
 
     This model was published in a 2000 Music Perception paper, and was shown
     to provide a psychoacoustic account of the Krumhansl-Kessler probe-tone
-    data. Computation runs in Docker: the default image is a compiled
-    MATLAB/IPEM binary; pass ``docker_image=DEFAULT_OCTAVE_IMAGE`` for the
-    license-free Octave backend (see ``docker/octave/``).
+    data. Computation runs in Docker via a license-free GNU Octave image
+    (see ``docker/octave/``). Build the default image with
+    ``./scripts/build_octave_image.sh`` before the first analysis.
 
     For repeated analyses in one process, prefer :class:`Leman2000Session`,
     which reuses a warm container and is typically faster after the first run.
@@ -186,20 +186,20 @@ def leman2000(
         Reduction used within each window. Defaults to :func:`numpy.mean`.
     keep_auditory_nerve :
         If True, include auditory nerve simulation outputs. These can be
-        large nested dictionaries from the MATLAB binary.
+        large nested dictionaries from the Octave model.
     keep_periodicity_pitch :
         If True, include periodicity pitch outputs. These can be large
-        nested dictionaries from the MATLAB binary.
+        nested dictionaries from the Octave model.
     docker_image :
-        Docker image providing the compiled model.
+        Docker image providing the model. Defaults to :data:`DEFAULT_IMAGE`
+        (build locally with ``./scripts/build_octave_image.sh``).
     docker_client :
         Optional Docker SDK client. Useful for testing.
     docker_timeout_sec :
         Maximum container runtime in seconds. Set to None for no timeout.
     show_progress :
-        If True, report progress on standard error while the model image is
-        downloaded and while the container runs. The first download is about
-        1 GB compressed.
+        If True, report progress on standard error while a pullable image is
+        downloaded and while the container runs.
 
     Returns
     -------
@@ -239,10 +239,10 @@ def leman2000(
 class Leman2000Session:
     """Reuse one Docker container across multiple model runs.
 
-    The underlying MATLAB Runtime still starts on every analysis, but keeping
-    the container alive warms filesystem caches. On Apple Silicon (emulated
-    amd64) later runs in the same session are typically faster than calling
-    :func:`leman2000` repeatedly.
+    Octave still starts on every analysis, but keeping the container alive
+    warms filesystem caches. On Apple Silicon (emulated amd64) later runs in
+    the same session are typically faster than calling :func:`leman2000`
+    repeatedly.
 
     Examples
     --------
