@@ -25,8 +25,8 @@ This is a Python port of [`leman2000R`](https://github.com/pmcharrison/leman2000
 - Python 3.10+
 - [Docker](https://docs.docker.com/get-docker/) installed and running
   (`docker info` should succeed)
-- On first use, the default GHCR image is pulled (progress on stderr). Silence
-  with `leman2000(..., show_progress=False)`.
+- On first use, the default GHCR image is pulled automatically (progress on
+  stderr). Silence with `leman2000(..., show_progress=False)`.
 
 Input and output files are copied in and out of the container rather than
 bind-mounted, so no Docker file sharing configuration is needed. Analyses work
@@ -51,7 +51,8 @@ For local development:
 python3 -m pip install -e ".[dev]"
 ```
 
-Optional: pre-pull the default image:
+Optional: pre-pull the default image (otherwise the package pulls it on first
+`leman2000(...)` call):
 
 ```bash
 docker pull "$(python3 -c 'from pyleman2000 import DEFAULT_IMAGE; print(DEFAULT_IMAGE)')"
@@ -72,8 +73,9 @@ you get an error pointing at the build script.
 
 Publishing to GHCR is handled by `.github/workflows/docker-publish.yml`
 (`linux/amd64`). Pushes to this branch publish
-`ghcr.io/cms-cambridge/pyleman2000-octave:dev`; version tags / manual
-dispatch publish `:0.1.0` (and `:latest`).
+`ghcr.io/cms-cambridge/pyleman2000-octave:dev` (also the package default until
+a versioned release); version tags / manual dispatch publish `:0.1.0` (and
+`:latest`).
 
 ## Choosing parameters
 
@@ -199,10 +201,11 @@ python3 -m pip install -e ".[dev]"
 python3 -m pytest -v -m "not integration"
 ```
 
-Integration and R-snapshot tests require Docker (and will pull `DEFAULT_IMAGE`
-from GHCR on first use, or build locally if you prefer):
+Integration and R-snapshot tests require Docker. The package pulls
+`DEFAULT_IMAGE` from GHCR on first use (or build locally if you prefer):
 
 ```bash
+# optional pre-pull; otherwise leman2000() pulls automatically
 docker pull "$(python3 -c 'from pyleman2000 import DEFAULT_IMAGE; print(DEFAULT_IMAGE)')"
 # or: ./scripts/build_octave_image.sh && use docker_image='pyleman2000-octave:dev'
 python3 -m pytest -v -m integration

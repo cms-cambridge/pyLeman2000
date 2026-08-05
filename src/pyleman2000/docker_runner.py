@@ -26,12 +26,10 @@ from requests.exceptions import Timeout
 from pyleman2000.progress import PullProgress, RunProgress
 
 # linux/amd64 image published by .github/workflows/docker-publish.yml.
-# Prefer a digest pin once a versioned publish has run; until then the
-# version tag (or a local retag of :dev) can be used. Apple Silicon runs
-# via Docker Desktop Rosetta/QEMU.
-DEFAULT_IMAGE = "ghcr.io/cms-cambridge/pyleman2000-octave:0.1.0"
-# CI also publishes :dev from the working branch (see docker-publish.yml).
-DEV_IMAGE = "ghcr.io/cms-cambridge/pyleman2000-octave:dev"
+# Branch pushes publish :dev (current default). Version tags publish :0.1.0
+# (+ :latest); pin a digest when cutting a release. Apple Silicon runs via
+# Docker Desktop Rosetta/QEMU.
+DEFAULT_IMAGE = "ghcr.io/cms-cambridge/pyleman2000-octave:dev"
 # Local contributor tag from ./scripts/build_octave_image.sh
 LOCAL_DEV_IMAGE = "pyleman2000-octave:dev"
 CONTAINER_INPUT_PATH = "/input.wav"
@@ -614,8 +612,9 @@ def run_model(
         Detail level forwarded to the model. Values ``> 1`` include auditory
         nerve and periodicity pitch images.
     image :
-        Docker image name. Defaults to :data:`DEFAULT_IMAGE`, which must be
-        built locally (see ``scripts/build_octave_image.sh``).
+        Docker image name. Defaults to :data:`DEFAULT_IMAGE` on GHCR
+        (pulled automatically on first use). Local builds can pass
+        ``pyleman2000-octave:dev`` from ``./scripts/build_octave_image.sh``.
     client :
         Optional Docker client. Created with :func:`docker.from_env` if omitted.
     timeout_sec :
@@ -632,7 +631,7 @@ def run_model(
     Raises
     ------
     Leman2000DockerError
-        If Docker is unavailable, the default image has not been built, or the
+        If Docker is unavailable, the image cannot be pulled or built, or the
         container exits unsuccessfully.
     """
     input_file = Path(input_file).resolve()
