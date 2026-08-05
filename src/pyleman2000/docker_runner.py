@@ -26,9 +26,12 @@ from requests.exceptions import Timeout
 from pyleman2000.progress import PullProgress, RunProgress
 
 # linux/amd64 image published by .github/workflows/docker-publish.yml.
-# Prefer a digest pin once the first publish has run; until then the version
-# tag is used. Apple Silicon runs via Docker Desktop Rosetta/QEMU.
+# Prefer a digest pin once a versioned publish has run; until then the
+# version tag (or a local retag of :dev) can be used. Apple Silicon runs
+# via Docker Desktop Rosetta/QEMU.
 DEFAULT_IMAGE = "ghcr.io/cms-cambridge/pyleman2000-octave:0.1.0"
+# CI also publishes :dev from the working branch (see docker-publish.yml).
+DEV_IMAGE = "ghcr.io/cms-cambridge/pyleman2000-octave:dev"
 # Local contributor tag from ./scripts/build_octave_image.sh
 LOCAL_DEV_IMAGE = "pyleman2000-octave:dev"
 CONTAINER_INPUT_PATH = "/input.wav"

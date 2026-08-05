@@ -71,7 +71,9 @@ Local `pyleman2000-octave:*` tags are never pulled from a registry; if missing
 you get an error pointing at the build script.
 
 Publishing to GHCR is handled by `.github/workflows/docker-publish.yml`
-(`linux/amd64`).
+(`linux/amd64`). Pushes to this branch publish
+`ghcr.io/cms-cambridge/pyleman2000-octave:dev`; version tags / manual
+dispatch publish `:0.1.0` (and `:latest`).
 
 ## Choosing parameters
 
