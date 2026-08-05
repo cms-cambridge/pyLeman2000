@@ -161,9 +161,9 @@ def leman2000(
     This model was published in a 2000 Music Perception paper, and was shown
     to provide a psychoacoustic account of the Krumhansl-Kessler probe-tone
     data. Computation runs in Docker via a license-free GNU Octave image
-    published to GHCR as a multi-arch package (``linux/amd64`` and
-    ``linux/arm64``; see ``docker/octave/``). The default image is pulled on
-    first use.
+    published to GHCR (``linux/amd64``; see ``docker/octave/``). The default
+    image is pulled on first use. On Apple Silicon, Docker Desktop runs it
+    under Rosetta/QEMU emulation.
 
     For repeated analyses in one process, prefer :class:`Leman2000Session`,
     which reuses a warm container and is typically faster after the first run.

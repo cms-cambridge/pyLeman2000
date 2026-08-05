@@ -24,19 +24,9 @@ env:
 
 jobs:
   build:
-    name: Build (${{ matrix.platform }})
-    runs-on: ${{ matrix.runner }}
-    timeout-minutes: 180
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - platform: linux/amd64
-            runner: ubuntu-24.04
-            suffix: amd64
-          - platform: linux/arm64
-            runner: ubuntu-24.04-arm
-            suffix: arm64
+    name: Build and push linux/amd64
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
 
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
@@ -50,7 +40,6 @@ jobs:
             TAG="${GITHUB_REF_NAME#v}"
           fi
           echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
-          echo "local=pyleman2000-octave:${TAG}-${{ matrix.suffix }}" >> "$GITHUB_OUTPUT"
 
       - name: Log in to GHCR
         uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3.6.0
@@ -62,62 +51,27 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3.11.1
 
-      - name: Build and push platform image
+      - name: Build and push
+        id: build
         uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
         with:
           context: docker/octave
           file: docker/octave/Dockerfile
-          platforms: ${{ matrix.platform }}
+          platforms: linux/amd64
           push: true
-          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.tag }}-${{ matrix.suffix }}
-          cache-from: type=gha,scope=octave-${{ matrix.suffix }}
-          cache-to: type=gha,mode=max,scope=octave-${{ matrix.suffix }}
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.tag }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+          cache-from: type=gha,scope=octave-amd64
+          cache-to: type=gha,mode=max,scope=octave-amd64
           provenance: false
 
-  merge:
-    name: Merge multi-arch manifest
-    needs: build
-    runs-on: ubuntu-24.04
-    timeout-minutes: 15
-    outputs:
-      digest: ${{ steps.manifest.outputs.digest }}
-      tag: ${{ steps.meta.outputs.tag }}
-
-    steps:
-      - name: Resolve image tag
-        id: meta
-        run: |
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            TAG="${{ inputs.tag }}"
-          else
-            TAG="${GITHUB_REF_NAME#v}"
-          fi
-          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
-
-      - name: Log in to GHCR
-        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3.6.0
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3.11.1
-
-      - name: Create and push manifest list
-        id: manifest
+      - name: Report digest
         run: |
           set -euo pipefail
           REF="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.tag }}"
-          AMD64="${REF}-amd64"
-          ARM64="${REF}-arm64"
-          docker buildx imagetools create \
-            -t "${REF}" \
-            -t "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest" \
-            "${AMD64}" "${ARM64}"
-          DIGEST="$(docker buildx imagetools inspect "${REF}" --format '{{json .Manifest}}' | python3 -c 'import sys,json; print(json.load(sys.stdin)["digest"])')"
-          echo "digest=${DIGEST}" >> "$GITHUB_OUTPUT"
+          DIGEST="${{ steps.build.outputs.digest }}"
           echo "Published ${REF}"
-          echo "Index digest: ${DIGEST}"
+          echo "Digest: ${DIGEST}"
           echo "Set DEFAULT_IMAGE to:"
           echo "  ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${DIGEST}"

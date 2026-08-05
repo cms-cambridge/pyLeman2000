@@ -25,14 +25,15 @@ from requests.exceptions import Timeout
 
 from pyleman2000.progress import PullProgress, RunProgress
 
-# Multi-arch image published by .github/workflows/docker-publish.yml
-# (linux/amd64 + linux/arm64). Prefer a digest pin once the first publish
-# has run; until then the version tag is used.
+# linux/amd64 image published by .github/workflows/docker-publish.yml.
+# Prefer a digest pin once the first publish has run; until then the version
+# tag is used. Apple Silicon runs via Docker Desktop Rosetta/QEMU.
 DEFAULT_IMAGE = "ghcr.io/cms-cambridge/pyleman2000-octave:0.1.0"
 # Local contributor tag from ./scripts/build_octave_image.sh
 LOCAL_DEV_IMAGE = "pyleman2000-octave:dev"
 CONTAINER_INPUT_PATH = "/input.wav"
 CONTAINER_OUTPUT_DIR = "/output"
+CONTAINER_PLATFORM = "linux/amd64"
 CONTAINER_ENTRYPOINT = "/leman_2000_docker.sh"
 WARM_KEEPALIVE_COMMAND = ["sleep", "infinity"]
 DEFAULT_TIMEOUT_SEC = 600.0
@@ -48,22 +49,18 @@ class Leman2000DockerError(RuntimeError):
     """Raised when the Docker-backed model fails to run."""
 
 
-def _platform_override() -> str | None:
-    """Optional platform pin from the environment (e.g. ``linux/amd64``).
+def _platform_override() -> str:
+    """Return the container platform (default ``linux/amd64``).
 
-    When unset, Docker selects the matching architecture from a multi-arch
-    manifest (native amd64 or arm64). Set ``PYLEMAN2000_DOCKER_PLATFORM`` to
-    force emulation or a specific variant.
+    Override with ``PYLEMAN2000_DOCKER_PLATFORM`` if needed. The published
+    image is amd64-only; on Apple Silicon Docker Desktop uses Rosetta/QEMU.
     """
     value = os.environ.get(_PLATFORM_ENV, "").strip()
-    return value or None
+    return value or CONTAINER_PLATFORM
 
 
 def _with_platform(kwargs: dict[str, Any]) -> dict[str, Any]:
-    platform = _platform_override()
-    if platform is not None:
-        kwargs = {**kwargs, "platform": platform}
-    return kwargs
+    return {**kwargs, "platform": _platform_override()}
 
 
 def _validate_timeout_sec(timeout_sec: float | None) -> float | None:

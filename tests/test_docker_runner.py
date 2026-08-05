@@ -83,7 +83,7 @@ def test_run_model_copies_input_into_the_container() -> None:
     assert result == PAYLOAD
     _, create_kwargs = client.containers.create.call_args
     assert create_kwargs["image"] == DEFAULT_IMAGE
-    assert "platform" not in create_kwargs
+    assert create_kwargs["platform"] == "linux/amd64"
     assert create_kwargs["command"][0] == CONTAINER_INPUT_PATH
     assert create_kwargs["command"][1].startswith(f"{CONTAINER_OUTPUT_DIR}/")
     assert create_kwargs["command"][2] == "0.1"
@@ -144,6 +144,7 @@ def test_run_model_pulls_a_missing_image_with_progress() -> None:
         tag=digest,
         stream=True,
         decode=True,
+        platform="linux/amd64",
     )
     client.images.pull.assert_not_called()
 
@@ -162,7 +163,9 @@ def test_run_model_pulls_without_progress_when_disabled() -> None:
         show_progress=False,
     )
 
-    client.images.pull.assert_called_once_with(remote_image)
+    client.images.pull.assert_called_once_with(
+        remote_image, platform="linux/amd64"
+    )
     client.api.pull.assert_not_called()
 
 
@@ -178,7 +181,9 @@ def test_run_model_pulls_default_image_when_missing() -> None:
         show_progress=False,
     )
 
-    client.images.pull.assert_called_once_with(DEFAULT_IMAGE)
+    client.images.pull.assert_called_once_with(
+        DEFAULT_IMAGE, platform="linux/amd64"
+    )
 
 
 def test_run_model_requires_local_build_for_dev_image() -> None:
@@ -380,7 +385,7 @@ def test_warm_runner_reuses_one_container_via_exec() -> None:
     client.containers.create.assert_called_once()
     _, create_kwargs = client.containers.create.call_args
     assert create_kwargs["entrypoint"] == ["sleep", "infinity"]
-    assert "platform" not in create_kwargs
+    assert create_kwargs["platform"] == "linux/amd64"
     assert "command" not in create_kwargs
     container.start.assert_called_once_with()
     assert container.exec_run.call_count == 2
