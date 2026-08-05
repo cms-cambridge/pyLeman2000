@@ -1,0 +1,95 @@
+name: docker-publish
+
+on:
+  push:
+    tags: ["v*"]
+    branches:
+      - main
+      - cursor/octave-backend-900c
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Image tag to publish (e.g. 0.1.0 or dev)"
+        required: true
+        default: "dev"
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: docker-publish-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository_owner }}/pyleman2000-octave
+
+jobs:
+  build:
+    name: Build and push linux/amd64
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+
+      - name: Resolve image tags
+        id: meta
+        run: |
+          set -euo pipefail
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            TAG="${{ inputs.tag }}"
+          elif [[ "${{ github.ref_type }}" == "tag" ]]; then
+            TAG="${GITHUB_REF_NAME#v}"
+          else
+            TAG="dev"
+          fi
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          {
+            echo "tags<<EOF"
+            echo "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${TAG}"
+            if [[ "${TAG}" != "dev" ]]; then
+              echo "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest"
+            fi
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Log in to GHCR
+        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3.6.0
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3.11.1
+
+      - name: Build and push
+        id: build
+        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
+        with:
+          context: docker/octave
+          file: docker/octave/Dockerfile
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          cache-from: type=gha,scope=octave-amd64
+          cache-to: type=gha,mode=max,scope=octave-amd64
+          provenance: false
+
+      - name: Report digest
+        run: |
+          set -euo pipefail
+          TAG="${{ steps.meta.outputs.tag }}"
+          REF="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${TAG}"
+          DIGEST="${{ steps.build.outputs.digest }}"
+          echo "Published ${REF}"
+          echo "Digest: ${DIGEST}"
+          if [[ "${TAG}" == "dev" ]]; then
+            echo "Pull with:"
+            echo "  docker pull ${REF}"
+          else
+            echo "Set DEFAULT_IMAGE to:"
+            echo "  ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${DIGEST}"
+          fi

@@ -81,10 +81,17 @@ jobs:
       - name: Install package
         run: pip install ".[dev]"
 
-      - name: Pull Leman 2000 Docker image
+      - name: Pull Octave model image (build locally if unpublished)
         run: |
-          docker pull "$(python -c \
-            'from pyleman2000.docker_runner import DEFAULT_IMAGE; print(DEFAULT_IMAGE)')"
+          set -euo pipefail
+          IMAGE="$(python -c 'from pyleman2000 import DEFAULT_IMAGE; print(DEFAULT_IMAGE)')"
+          if docker pull "$IMAGE"; then
+            echo "Using pulled image ${IMAGE}"
+          else
+            echo "GHCR image not available yet; building native image and retagging"
+            ./scripts/build_octave_image.sh
+            docker tag pyleman2000-octave:dev "$IMAGE"
+          fi
 
       - name: Run integration tests
         run: pytest -v -m integration

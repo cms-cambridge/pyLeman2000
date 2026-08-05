@@ -5,10 +5,18 @@ Python wrapper for Leman's (2000) tonal contextuality model.
 The original model was published in a 2000 *Music Perception* paper, and was
 shown to provide a psychoacoustic account of the Krumhansl-Kessler probe-tone
 data (Leman, 2000). Leman and colleagues released this model as part of the
-IPEM Toolbox, which now only runs on old MATLAB versions. This package wraps
-the compiled implementation in Docker (via the
+IPEM Toolbox, which now only runs on old MATLAB versions. This package runs a
+license-free GNU Octave port of the model in Docker (via the
 [Docker SDK for Python](https://docker-py.readthedocs.io/)) for cross-platform
 use.
+
+The default image is
+[`ghcr.io/cms-cambridge/pyleman2000-octave`](https://github.com/cms-cambridge/pyLeman2000/pkgs/container/pyleman2000-octave)
+(`linux/amd64`), built from `docker/octave/` against a pinned
+[cms-cambridge/IPEMToolbox](https://github.com/cms-cambridge/IPEMToolbox)
+commit. On 44.1 kHz input, running correlations typically agree with the
+archived MATLAB/R snapshots to about `3e-6` (not bit-identical). Feed
+22.05 kHz audio if you need closer cross-implementation agreement.
 
 This is a Python port of [`leman2000R`](https://github.com/pmcharrison/leman2000R).
 
@@ -17,24 +25,19 @@ This is a Python port of [`leman2000R`](https://github.com/pmcharrison/leman2000
 - Python 3.10+
 - [Docker](https://docs.docker.com/get-docker/) installed and running
   (`docker info` should succeed)
-- On first use, a reproducibly pinned `ghcr.io/pmcharrison/leman_2000` image is
-  pulled (~1 GB compressed). That first pull can take several minutes; download
-  and extraction progress is reported on standard error. Subsequent runs also
-  report preparing / running / reading status (with an elapsed-time heartbeat
-  while the model executes). Silence both with
-  `leman2000(..., show_progress=False)`.
+- On first use, the default GHCR image is pulled automatically (progress on
+  stderr). Silence with `leman2000(..., show_progress=False)`.
 
 Input and output files are copied in and out of the container rather than
 bind-mounted, so no Docker file sharing configuration is needed. Analyses work
 regardless of where the audio lives, including paths that Docker Desktop does
 not share by default (such as WAV files inside `site-packages`).
 
-> **Note:** The underlying image targets `linux/amd64`. On Apple Silicon, enable
-> Docker Desktop's amd64/Rosetta or QEMU emulation, then verify with
+> **Note:** The image targets `linux/amd64`. On Apple Silicon, enable Docker
+> Desktop's amd64/Rosetta or QEMU emulation, then verify with
 > `docker run --platform=linux/amd64 --rm hello-world`. Emulated runs are
-> slower than native amd64 hardware. Most of the per-call cost is MATLAB
-> Runtime startup (several seconds even for short WAVs). For many analyses in
-> one process, reuse a warm container with `Leman2000Session` (see below).
+> slower than native amd64 hardware. For many analyses in one process, reuse a
+> warm container with `Leman2000Session` (see below).
 
 ## Installation
 
@@ -48,11 +51,31 @@ For local development:
 python3 -m pip install -e ".[dev]"
 ```
 
-Optional: pre-pull the pinned model image before your first analysis:
+Optional: pre-pull the default image (otherwise the package pulls it on first
+`leman2000(...)` call):
 
 ```bash
-docker pull "$(python3 -c 'from pyleman2000.docker_runner import DEFAULT_IMAGE; print(DEFAULT_IMAGE)')"
+docker pull "$(python3 -c 'from pyleman2000 import DEFAULT_IMAGE; print(DEFAULT_IMAGE)')"
 ```
+
+### Building the image locally
+
+Contributors can build from this repository (pins IPEM at the commit in
+`docker/octave/Dockerfile`):
+
+```bash
+./scripts/build_octave_image.sh
+```
+
+Then pass `docker_image="pyleman2000-octave:dev"` (or another tag) to the API.
+Local `pyleman2000-octave:*` tags are never pulled from a registry; if missing
+you get an error pointing at the build script.
+
+Publishing to GHCR is handled by `.github/workflows/docker-publish.yml`
+(`linux/amd64`). Pushes to this branch publish
+`ghcr.io/cms-cambridge/pyleman2000-octave:dev` (also the package default until
+a versioned release); version tags / manual dispatch publish `:0.1.0` (and
+`:latest`).
 
 ## Choosing parameters
 
@@ -73,9 +96,9 @@ half-open intervals `[start, end)`: pyLeman2000 includes both endpoints, so a
 sample that falls exactly on a shared boundary contributes to both adjacent
 windows.
 
-Input files must use a `.wav` extension. The Dockerised binary inherits the
-IPEM/MATLAB WAV constraints of the original toolbox; if a file fails inside
-the container, try a standard PCM WAV (for example mono or stereo, 16-bit,
+Input files must use a `.wav` extension. The Dockerised model inherits the
+IPEM WAV constraints of the original toolbox; if a file fails inside the
+container, try a standard PCM WAV (for example mono or stereo, 16-bit,
 44.1 kHz).
 
 ## Example
@@ -99,8 +122,8 @@ result.audio_length_sec, result.num_channels, result.sample_rate
 
 ### Repeated analyses (warm container)
 
-Each one-shot `leman2000(...)` call starts a fresh container and pays MATLAB
-Runtime startup again. When analysing many files, keep one container alive:
+Each one-shot `leman2000(...)` call starts a fresh container. When analysing
+many files, keep one container alive:
 
 ```python
 from pyleman2000 import Leman2000Session, example_wav_path
@@ -118,8 +141,8 @@ with Leman2000Session() as session:
     )
 ```
 
-The Runtime still starts on every `run`, but later calls in the same session
-are typically faster (filesystem caches stay warm), especially on Apple Silicon.
+Octave still starts on every `run`, but later calls in the same session are
+typically faster (filesystem caches stay warm), especially on Apple Silicon.
 
 ```python
 result.local_global_comparison.head()
@@ -162,7 +185,7 @@ window 1, then window 2, and so on).
 - `local_global_comparison` — pandas DataFrame of running local/global correlations
 - `windowed_local_global_comparison` — optional windowed averages
 - `auditory_nerve` / `periodicity_pitch` — optional heavy intermediate outputs
-  (nested dictionaries from the MATLAB binary; omit unless you need them)
+  (nested dictionaries from the Octave model; omit unless you need them)
 
 The result object itself is frozen (attribute reassignment is blocked), but
 embedded DataFrames remain mutable through pandas APIs. Constructor inputs are
@@ -178,16 +201,20 @@ python3 -m pip install -e ".[dev]"
 python3 -m pytest -v -m "not integration"
 ```
 
-Integration and R-snapshot tests require Docker:
+Integration and R-snapshot tests require Docker. The package pulls
+`DEFAULT_IMAGE` from GHCR on first use (or build locally if you prefer):
 
 ```bash
-docker pull "$(python3 -c 'from pyleman2000.docker_runner import DEFAULT_IMAGE; print(DEFAULT_IMAGE)')"
+# optional pre-pull; otherwise leman2000() pulls automatically
+docker pull "$(python3 -c 'from pyleman2000 import DEFAULT_IMAGE; print(DEFAULT_IMAGE)')"
+# or: ./scripts/build_octave_image.sh && use docker_image='pyleman2000-octave:dev'
 python3 -m pytest -v -m integration
 ```
 
 Snapshot CSVs under `tests/snapshots/` were generated from
 [`leman2000R`](https://github.com/pmcharrison/leman2000R) via
-`scripts/generate_r_snapshots.R`.
+`scripts/generate_r_snapshots.R` (MATLAB backend). Octave integration tests
+compare against those archives with a looser tolerance (~`1e-5`).
 
 ## References
 

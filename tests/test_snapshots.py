@@ -1,4 +1,4 @@
-"""Snapshot tests comparing Python output to the original R package."""
+"""Snapshot tests comparing Octave output to archived R/MATLAB snapshots."""
 
 from __future__ import annotations
 
@@ -8,8 +8,20 @@ import pandas as pd
 import pytest
 
 from pyleman2000 import example_wav_path, leman2000
+from tests.docker_support import docker_daemon_available
 
-pytestmark = pytest.mark.integration
+# Octave agrees with the archived MATLAB/R snapshots to roughly 3e-6 on
+# 44.1 kHz input; keep a little headroom for CI/platform variation.
+SNAPSHOT_RTOL = 1e-5
+SNAPSHOT_ATOL = 1e-5
+
+pytestmark = [
+    pytest.mark.integration,
+    pytest.mark.skipif(
+        not docker_daemon_available(),
+        reason="Docker daemon not available",
+    ),
+]
 
 SNAPSHOT_DIR = Path(__file__).parent / "snapshots"
 
@@ -25,6 +37,7 @@ def python_result():
         local_decay_sec=LOCAL_DECAY,
         global_decay_sec=GLOBAL_DECAY,
         windows=WINDOWS,
+        show_progress=False,
     )
 
 
@@ -35,6 +48,7 @@ def detailed_python_result():
         local_decay_sec=LOCAL_DECAY,
         global_decay_sec=GLOBAL_DECAY,
         keep_auditory_nerve=True,
+        show_progress=False,
     )
 
 
@@ -57,8 +71,8 @@ def test_local_global_comparison_matches_r(python_result) -> None:
         actual[keys + ["running_correlation"]],
         expected[keys + ["running_correlation"]],
         check_dtype=False,
-        rtol=1e-12,
-        atol=1e-12,
+        rtol=SNAPSHOT_RTOL,
+        atol=SNAPSHOT_ATOL,
     )
 
 
@@ -78,8 +92,8 @@ def test_windowed_comparison_matches_r(python_result) -> None:
         actual[cols],
         expected[cols],
         check_dtype=False,
-        rtol=1e-12,
-        atol=1e-12,
+        rtol=SNAPSHOT_RTOL,
+        atol=SNAPSHOT_ATOL,
     )
 
 
@@ -104,6 +118,7 @@ def test_periodicity_pitch_can_be_requested() -> None:
         local_decay_sec=0.1,
         global_decay_sec=1.0,
         keep_periodicity_pitch=True,
+        show_progress=False,
     )
     assert result.periodicity_pitch is not None
     assert isinstance(result.periodicity_pitch, dict)
