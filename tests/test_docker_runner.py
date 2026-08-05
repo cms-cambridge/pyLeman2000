@@ -16,8 +16,8 @@ from pyleman2000 import example_wav_path
 from pyleman2000.docker_runner import (
     CONTAINER_INPUT_PATH,
     CONTAINER_OUTPUT_DIR,
-    CONTAINER_PLATFORM,
     DEFAULT_IMAGE,
+    LOCAL_DEV_IMAGE,
     Leman2000DockerError,
     WarmModelRunner,
     run_model,
@@ -83,7 +83,7 @@ def test_run_model_copies_input_into_the_container() -> None:
     assert result == PAYLOAD
     _, create_kwargs = client.containers.create.call_args
     assert create_kwargs["image"] == DEFAULT_IMAGE
-    assert create_kwargs["platform"] == CONTAINER_PLATFORM
+    assert "platform" not in create_kwargs
     assert create_kwargs["command"][0] == CONTAINER_INPUT_PATH
     assert create_kwargs["command"][1].startswith(f"{CONTAINER_OUTPUT_DIR}/")
     assert create_kwargs["command"][2] == "0.1"
@@ -142,7 +142,6 @@ def test_run_model_pulls_a_missing_image_with_progress() -> None:
     client.api.pull.assert_called_once_with(
         repository,
         tag=digest,
-        platform=CONTAINER_PLATFORM,
         stream=True,
         decode=True,
     )
@@ -163,13 +162,26 @@ def test_run_model_pulls_without_progress_when_disabled() -> None:
         show_progress=False,
     )
 
-    client.images.pull.assert_called_once_with(
-        remote_image, platform=CONTAINER_PLATFORM
-    )
+    client.images.pull.assert_called_once_with(remote_image)
     client.api.pull.assert_not_called()
 
 
-def test_run_model_requires_local_build_for_default_image() -> None:
+def test_run_model_pulls_default_image_when_missing() -> None:
+    client = _client_returning(json.dumps(PAYLOAD).encode("utf-8"))
+    client.images.get.side_effect = ImageNotFound("missing")
+
+    run_model(
+        example_wav_path(),
+        local_decay_sec=[0.1],
+        global_decay_sec=[1.0],
+        client=client,
+        show_progress=False,
+    )
+
+    client.images.pull.assert_called_once_with(DEFAULT_IMAGE)
+
+
+def test_run_model_requires_local_build_for_dev_image() -> None:
     client = MagicMock()
     client.images.get.side_effect = ImageNotFound("missing")
 
@@ -178,11 +190,30 @@ def test_run_model_requires_local_build_for_default_image() -> None:
             example_wav_path(),
             local_decay_sec=[0.1],
             global_decay_sec=[1.0],
+            image=LOCAL_DEV_IMAGE,
             client=client,
         )
 
     client.images.pull.assert_not_called()
     client.api.pull.assert_not_called()
+
+
+def test_run_model_respects_platform_override(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client = _client_returning(json.dumps(PAYLOAD).encode("utf-8"))
+    monkeypatch.setenv("PYLEMAN2000_DOCKER_PLATFORM", "linux/amd64")
+
+    run_model(
+        example_wav_path(),
+        local_decay_sec=[0.1],
+        global_decay_sec=[1.0],
+        client=client,
+        show_progress=False,
+    )
+
+    _, create_kwargs = client.containers.create.call_args
+    assert create_kwargs["platform"] == "linux/amd64"
 
 
 def test_run_model_wraps_image_lookup_errors() -> None:
@@ -349,7 +380,7 @@ def test_warm_runner_reuses_one_container_via_exec() -> None:
     client.containers.create.assert_called_once()
     _, create_kwargs = client.containers.create.call_args
     assert create_kwargs["entrypoint"] == ["sleep", "infinity"]
-    assert create_kwargs["platform"] == CONTAINER_PLATFORM
+    assert "platform" not in create_kwargs
     assert "command" not in create_kwargs
     container.start.assert_called_once_with()
     assert container.exec_run.call_count == 2

@@ -10,12 +10,13 @@ license-free GNU Octave port of the model in Docker (via the
 [Docker SDK for Python](https://docker-py.readthedocs.io/)) for cross-platform
 use.
 
-The default image is built locally from `docker/octave/` (pins
-[cms-cambridge/IPEMToolbox](https://github.com/cms-cambridge/IPEMToolbox) at
-the commit in `docker/octave/Dockerfile`). On 44.1 kHz input, running
-correlations typically agree with the archived MATLAB/R snapshots to about
-`3e-6` (not bit-identical). Feed 22.05 kHz audio if you need closer
-cross-implementation agreement.
+The default image is the multi-arch
+[`ghcr.io/cms-cambridge/pyleman2000-octave`](https://github.com/cms-cambridge/pyLeman2000/pkgs/container/pyleman2000-octave)
+package (`linux/amd64` and `linux/arm64`), built from `docker/octave/` against
+a pinned [cms-cambridge/IPEMToolbox](https://github.com/cms-cambridge/IPEMToolbox)
+commit. On 44.1 kHz input, running correlations typically agree with the
+archived MATLAB/R snapshots to about `3e-6` (not bit-identical). Feed
+22.05 kHz audio if you need closer cross-implementation agreement.
 
 This is a Python port of [`leman2000R`](https://github.com/pmcharrison/leman2000R).
 
@@ -24,21 +25,19 @@ This is a Python port of [`leman2000R`](https://github.com/pmcharrison/leman2000
 - Python 3.10+
 - [Docker](https://docs.docker.com/get-docker/) installed and running
   (`docker info` should succeed)
-- The Octave model image built once locally (see Installation). Subsequent runs
-  report preparing / running / reading status (with an elapsed-time heartbeat
-  while the model executes). Silence that with
-  `leman2000(..., show_progress=False)`.
+- On first use, the default GHCR image is pulled (progress on stderr). Silence
+  with `leman2000(..., show_progress=False)`.
 
 Input and output files are copied in and out of the container rather than
 bind-mounted, so no Docker file sharing configuration is needed. Analyses work
 regardless of where the audio lives, including paths that Docker Desktop does
 not share by default (such as WAV files inside `site-packages`).
 
-> **Note:** The image targets `linux/amd64`. On Apple Silicon, enable Docker
-> Desktop's amd64/Rosetta or QEMU emulation, then verify with
-> `docker run --platform=linux/amd64 --rm hello-world`. Emulated runs are
-> slower than native amd64 hardware. For many analyses in one process, reuse a
-> warm container with `Leman2000Session` (see below).
+> **Note:** The published image is multi-arch. Docker selects the native
+> variant on Apple Silicon (`arm64`) and on Intel/AMD (`amd64`). To force a
+> platform (for example amd64 under emulation), set
+> `PYLEMAN2000_DOCKER_PLATFORM=linux/amd64`. For many analyses in one process,
+> reuse a warm container with `Leman2000Session` (see below).
 
 ## Installation
 
@@ -52,11 +51,28 @@ For local development:
 python3 -m pip install -e ".[dev]"
 ```
 
-Build the Octave model image before your first analysis:
+Optional: pre-pull the default image:
+
+```bash
+docker pull "$(python3 -c 'from pyleman2000 import DEFAULT_IMAGE; print(DEFAULT_IMAGE)')"
+```
+
+### Building the image locally
+
+Contributors can build a native-arch image from this repository (pins IPEM at
+the commit in `docker/octave/Dockerfile`):
 
 ```bash
 ./scripts/build_octave_image.sh
 ```
+
+Then pass `docker_image="pyleman2000-octave:dev"` (or another tag) to the API.
+Local `pyleman2000-octave:*` tags are never pulled from a registry; if missing
+you get an error pointing at the build script.
+
+Multi-arch publishes to GHCR are handled by
+`.github/workflows/docker-publish.yml` (native `ubuntu-24.04` +
+`ubuntu-24.04-arm` runners, then a merged manifest list).
 
 ## Choosing parameters
 
@@ -182,10 +198,12 @@ python3 -m pip install -e ".[dev]"
 python3 -m pytest -v -m "not integration"
 ```
 
-Integration and R-snapshot tests require Docker and the built Octave image:
+Integration and R-snapshot tests require Docker (and will pull `DEFAULT_IMAGE`
+from GHCR on first use, or build locally if you prefer):
 
 ```bash
-./scripts/build_octave_image.sh
+docker pull "$(python3 -c 'from pyleman2000 import DEFAULT_IMAGE; print(DEFAULT_IMAGE)')"
+# or: ./scripts/build_octave_image.sh && use docker_image='pyleman2000-octave:dev'
 python3 -m pytest -v -m integration
 ```
 

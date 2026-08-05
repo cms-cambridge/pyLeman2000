@@ -1,4 +1,4 @@
-"""Integration tests that require the Octave Docker image."""
+"""Integration tests that require Docker and the Octave model image."""
 
 from __future__ import annotations
 
@@ -6,32 +6,15 @@ import math
 
 import pytest
 
-from pyleman2000 import DEFAULT_IMAGE, example_wav_path, leman2000
+from pyleman2000 import example_wav_path, leman2000
 from pyleman2000.docker_runner import Leman2000DockerError
-
-
-def _default_image_available() -> bool:
-    try:
-        import docker
-
-        client = docker.from_env()
-        try:
-            client.images.get(DEFAULT_IMAGE)
-            return True
-        except Exception:
-            return False
-        finally:
-            client.close()
-    except Exception:
-        return False
-
+from tests.docker_support import docker_daemon_available
 
 pytestmark = [
     pytest.mark.integration,
     pytest.mark.skipif(
-        not _default_image_available(),
-        reason=f"Octave image {DEFAULT_IMAGE!r} not built "
-        "(run scripts/build_octave_image.sh)",
+        not docker_daemon_available(),
+        reason="Docker daemon not available",
     ),
 ]
 
@@ -58,7 +41,6 @@ def test_leman2000_end_to_end() -> None:
     assert result.num_channels == 1
     assert result.sample_rate == 44100.0
 
-    # First correlation should be exactly 1.0 for each combo.
     first_rows = result.local_global_comparison.groupby(
         ["local_decay_sec", "global_decay_sec"], sort=False
     ).first()

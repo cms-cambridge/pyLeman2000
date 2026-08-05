@@ -7,36 +7,19 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
-from pyleman2000 import DEFAULT_IMAGE, example_wav_path, leman2000
+from pyleman2000 import example_wav_path, leman2000
+from tests.docker_support import docker_daemon_available
 
 # Octave agrees with the archived MATLAB/R snapshots to roughly 3e-6 on
 # 44.1 kHz input; keep a little headroom for CI/platform variation.
 SNAPSHOT_RTOL = 1e-5
 SNAPSHOT_ATOL = 1e-5
 
-
-def _default_image_available() -> bool:
-    try:
-        import docker
-
-        client = docker.from_env()
-        try:
-            client.images.get(DEFAULT_IMAGE)
-            return True
-        except Exception:
-            return False
-        finally:
-            client.close()
-    except Exception:
-        return False
-
-
 pytestmark = [
     pytest.mark.integration,
     pytest.mark.skipif(
-        not _default_image_available(),
-        reason=f"Octave image {DEFAULT_IMAGE!r} not built "
-        "(run scripts/build_octave_image.sh)",
+        not docker_daemon_available(),
+        reason="Docker daemon not available",
     ),
 ]
 

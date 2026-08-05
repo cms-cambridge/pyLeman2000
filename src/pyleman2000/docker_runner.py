@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import math
+import os
 import tarfile
 import tempfile
 import threading
@@ -24,16 +25,18 @@ from requests.exceptions import Timeout
 
 from pyleman2000.progress import PullProgress, RunProgress
 
-# License-free Octave image built from cms-cambridge/IPEMToolbox (see
-# docker/octave/Dockerfile). Build locally with:
-#   ./scripts/build_octave_image.sh
-DEFAULT_IMAGE = "pyleman2000-octave:dev"
+# Multi-arch image published by .github/workflows/docker-publish.yml
+# (linux/amd64 + linux/arm64). Prefer a digest pin once the first publish
+# has run; until then the version tag is used.
+DEFAULT_IMAGE = "ghcr.io/cms-cambridge/pyleman2000-octave:0.1.0"
+# Local contributor tag from ./scripts/build_octave_image.sh
+LOCAL_DEV_IMAGE = "pyleman2000-octave:dev"
 CONTAINER_INPUT_PATH = "/input.wav"
 CONTAINER_OUTPUT_DIR = "/output"
-CONTAINER_PLATFORM = "linux/amd64"
 CONTAINER_ENTRYPOINT = "/leman_2000_docker.sh"
 WARM_KEEPALIVE_COMMAND = ["sleep", "infinity"]
 DEFAULT_TIMEOUT_SEC = 600.0
+_PLATFORM_ENV = "PYLEMAN2000_DOCKER_PLATFORM"
 _BUILD_IMAGE_HINT = (
     "Build it from this repository with:\n"
     "  ./scripts/build_octave_image.sh\n"
@@ -43,6 +46,24 @@ _BUILD_IMAGE_HINT = (
 
 class Leman2000DockerError(RuntimeError):
     """Raised when the Docker-backed model fails to run."""
+
+
+def _platform_override() -> str | None:
+    """Optional platform pin from the environment (e.g. ``linux/amd64``).
+
+    When unset, Docker selects the matching architecture from a multi-arch
+    manifest (native amd64 or arm64). Set ``PYLEMAN2000_DOCKER_PLATFORM`` to
+    force emulation or a specific variant.
+    """
+    value = os.environ.get(_PLATFORM_ENV, "").strip()
+    return value or None
+
+
+def _with_platform(kwargs: dict[str, Any]) -> dict[str, Any]:
+    platform = _platform_override()
+    if platform is not None:
+        kwargs = {**kwargs, "platform": platform}
+    return kwargs
 
 
 def _validate_timeout_sec(timeout_sec: float | None) -> float | None:
@@ -77,8 +98,7 @@ def _is_local_build_image(image: str) -> bool:
     """Return True for images that must be built locally, not pulled."""
     name = image.split("@", 1)[0]
     repository, _tag = parse_repository_tag(name)
-    # Hub-style names like "ubuntu" have no slash; our image is local-only.
-    return repository == "pyleman2000-octave" or image == DEFAULT_IMAGE
+    return repository == "pyleman2000-octave"
 
 
 def _missing_local_image_error(image: str) -> Leman2000DockerError:
@@ -94,20 +114,29 @@ def _pull_error(image: str, detail: object) -> Leman2000DockerError:
     )
 
 
+def _repository_and_ref(image: str) -> tuple[str, str]:
+    if "@" in image:
+        repository, digest = image.split("@", 1)
+        return repository, digest
+    repository, tag = parse_repository_tag(image)
+    return repository, tag or "latest"
+
+
 def _pull_image(
     client: docker.DockerClient, image: str, *, show_progress: bool
 ) -> None:
+    pull_kwargs = _with_platform({})
     if not show_progress:
-        client.images.pull(image, platform=CONTAINER_PLATFORM)
+        client.images.pull(image, **pull_kwargs)
         return
 
-    repository, tag = parse_repository_tag(image)
+    repository, ref = _repository_and_ref(image)
     events = client.api.pull(
         repository,
-        tag=tag or "latest",
-        platform=CONTAINER_PLATFORM,
+        tag=ref,
         stream=True,
         decode=True,
+        **pull_kwargs,
     )
     progress = PullProgress(image)
     try:
@@ -418,9 +447,12 @@ class WarmModelRunner:
 
         try:
             self._container = self._client.containers.create(
-                image=self._image,
-                entrypoint=WARM_KEEPALIVE_COMMAND,
-                platform=CONTAINER_PLATFORM,
+                **_with_platform(
+                    {
+                        "image": self._image,
+                        "entrypoint": WARM_KEEPALIVE_COMMAND,
+                    }
+                )
             )
             self._container.start()
         except ImageNotFound as exc:
@@ -524,9 +556,12 @@ def _run_container(
         if progress is not None:
             progress.preparing()
         container = client.containers.create(
-            image=image,
-            command=list(command),
-            platform=CONTAINER_PLATFORM,
+            **_with_platform(
+                {
+                    "image": image,
+                    "command": list(command),
+                }
+            )
         )
         with _build_input_archive(input_file) as archive:
             container.put_archive("/", archive)

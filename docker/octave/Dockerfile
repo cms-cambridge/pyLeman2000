@@ -52,7 +52,6 @@ RUN apt-get update \
         pkg-config \
         tar \
         wget \
-        xz-utils \
         zlib1g-dev \
     && rm -rf /var/lib/apt/lists/*
 
