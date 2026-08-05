@@ -6,9 +6,16 @@ The original model was published in a 2000 *Music Perception* paper, and was
 shown to provide a psychoacoustic account of the Krumhansl-Kessler probe-tone
 data (Leman, 2000). Leman and colleagues released this model as part of the
 IPEM Toolbox, which now only runs on old MATLAB versions. This package wraps
-the compiled implementation in Docker (via the
+the model in Docker (via the
 [Docker SDK for Python](https://docker-py.readthedocs.io/)) for cross-platform
 use.
+
+Two backends are supported:
+
+| Backend | Image | Notes |
+|---------|-------|-------|
+| **MATLAB MCR** (default) | pinned `ghcr.io/pmcharrison/leman_2000` | Bit-identical to archived R snapshots (`1e-12`) |
+| **GNU Octave** | build locally from `docker/octave/` | License-free; correlations agree with MATLAB to ~`3e-6` on 44.1 kHz input |
 
 This is a Python port of [`leman2000R`](https://github.com/pmcharrison/leman2000R).
 
@@ -17,24 +24,25 @@ This is a Python port of [`leman2000R`](https://github.com/pmcharrison/leman2000
 - Python 3.10+
 - [Docker](https://docs.docker.com/get-docker/) installed and running
   (`docker info` should succeed)
-- On first use, a reproducibly pinned `ghcr.io/pmcharrison/leman_2000` image is
-  pulled (~1 GB compressed). That first pull can take several minutes; download
-  and extraction progress is reported on standard error. Subsequent runs also
-  report preparing / running / reading status (with an elapsed-time heartbeat
-  while the model executes). Silence both with
-  `leman2000(..., show_progress=False)`.
+- On first use of the default backend, a reproducibly pinned
+  `ghcr.io/pmcharrison/leman_2000` image is pulled (~1 GB compressed). That
+  first pull can take several minutes; download and extraction progress is
+  reported on standard error. Subsequent runs also report preparing / running /
+  reading status (with an elapsed-time heartbeat while the model executes).
+  Silence both with `leman2000(..., show_progress=False)`.
 
 Input and output files are copied in and out of the container rather than
 bind-mounted, so no Docker file sharing configuration is needed. Analyses work
 regardless of where the audio lives, including paths that Docker Desktop does
 not share by default (such as WAV files inside `site-packages`).
 
-> **Note:** The underlying image targets `linux/amd64`. On Apple Silicon, enable
+> **Note:** The underlying images target `linux/amd64`. On Apple Silicon, enable
 > Docker Desktop's amd64/Rosetta or QEMU emulation, then verify with
 > `docker run --platform=linux/amd64 --rm hello-world`. Emulated runs are
-> slower than native amd64 hardware. Most of the per-call cost is MATLAB
-> Runtime startup (several seconds even for short WAVs). For many analyses in
-> one process, reuse a warm container with `Leman2000Session` (see below).
+> slower than native amd64 hardware. Most of the per-call cost for the MATLAB
+> backend is Runtime startup (several seconds even for short WAVs). For many
+> analyses in one process, reuse a warm container with `Leman2000Session`
+> (see below).
 
 ## Installation
 
@@ -48,12 +56,39 @@ For local development:
 python3 -m pip install -e ".[dev]"
 ```
 
-Optional: pre-pull the pinned model image before your first analysis:
+Optional: pre-pull the pinned MATLAB model image before your first analysis:
 
 ```bash
 docker pull "$(python3 -c 'from pyleman2000.docker_runner import DEFAULT_IMAGE; print(DEFAULT_IMAGE)')"
 ```
 
+### Octave backend (license-free)
+
+Build the Octave image from this repository (pins
+[cms-cambridge/IPEMToolbox](https://github.com/cms-cambridge/IPEMToolbox) at the
+commit in `docker/octave/Dockerfile`):
+
+```bash
+./scripts/build_octave_image.sh
+```
+
+Then pass the image to the API:
+
+```python
+from pyleman2000 import DEFAULT_OCTAVE_IMAGE, example_wav_path, leman2000
+
+result = leman2000(
+    input_file=example_wav_path(),
+    local_decay_sec=[0.1, 0.2],
+    global_decay_sec=[1.0, 2.0],
+    docker_image=DEFAULT_OCTAVE_IMAGE,
+)
+```
+
+Octave uses a MATLAB-compatible `resample` shim inside the toolbox fork. On
+44.1 kHz input, running correlations typically match the MATLAB backend to
+about `3e-6` (not `1e-12`). Feed 22.05 kHz audio if you need near-exact
+cross-backend agreement.
 ## Choosing parameters
 
 There is not much clarity in the literature on which local/global decay

@@ -3,10 +3,16 @@
 from importlib.metadata import PackageNotFoundError, version
 
 from pyleman2000.api import Leman2000Session, example_wav_path, leman2000
-from pyleman2000.docker_runner import Leman2000DockerError
+from pyleman2000.docker_runner import (
+    DEFAULT_IMAGE,
+    DEFAULT_OCTAVE_IMAGE,
+    Leman2000DockerError,
+)
 from pyleman2000.types import Leman2000Result
 
 __all__ = [
+    "DEFAULT_IMAGE",
+    "DEFAULT_OCTAVE_IMAGE",
     "example_wav_path",
     "leman2000",
     "Leman2000DockerError",

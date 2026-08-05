@@ -28,6 +28,10 @@ DEFAULT_IMAGE = (
     "ghcr.io/pmcharrison/leman_2000"
     "@sha256:08d5ce84b9844954473832af65188f8f56fdfc8bcc3c64e0307e532a062e2442"
 )
+# License-free Octave backend built from cms-cambridge/IPEMToolbox (see
+# docker/octave/Dockerfile). Build locally with:
+#   docker build -f docker/octave/Dockerfile -t pyleman2000-octave:dev docker/octave
+DEFAULT_OCTAVE_IMAGE = "pyleman2000-octave:dev"
 CONTAINER_INPUT_PATH = "/input.wav"
 CONTAINER_OUTPUT_DIR = "/output"
 CONTAINER_PLATFORM = "linux/amd64"
