@@ -1,0 +1,14 @@
+# Dockerfile for image: pyleman2000-matlab-worker
+# 
+# Sample docker build command:
+# docker build -f "Dockerfile" -t pyleman2000-matlab-worker "."
+
+FROM pyleman2000-matlab-runtime:custom
+
+COPY ./applicationFilesForMATLABCompiler /usr/bin/mlrtapp
+RUN chmod -R a+rX /usr/bin/mlrtapp/*
+
+RUN if ["$(getent passwd root | cut -d: -f1)" = ""] ; then useradd -ms /bin/bash root ; fi
+USER root
+
+ENTRYPOINT ["/usr/bin/mlrtapp/leman_2000_worker"]
