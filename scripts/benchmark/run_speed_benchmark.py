@@ -203,6 +203,7 @@ def main() -> int:
                 ["Rscript", "-e", "cat(as.character(getRversion()))"],
                 text=True,
             ).strip(),
+            "docker_storage_driver": _docker_info_field("{{.Driver}}"),
         },
         "packages": {
             "pyLeman2000": __version__,
@@ -353,6 +354,7 @@ def _render_markdown(meta: dict) -> str:
         "## Setup",
         "",
         f"- Host: `{meta['host']['platform']}`",
+        f"- Docker storage driver: `{meta['host'].get('docker_storage_driver', 'unknown')}`",
         f"- Python: `{meta['host']['python']}`, pyLeman2000 `{meta['packages']['pyLeman2000']}`",
         f"- R: `{meta['host']['r']}`, leman2000R `{meta['packages']['leman2000R'].get('Version', '?')}`"
         f" (`{meta['packages']['leman2000R'].get('RemoteSha', '')[:12]}`)",
