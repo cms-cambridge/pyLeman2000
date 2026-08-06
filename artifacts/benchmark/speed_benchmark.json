@@ -1,0 +1,218 @@
+{
+  "timestamp_utc": "2026-08-06T07:26:58.232527+00:00",
+  "host": {
+    "platform": "Linux-6.12.94+-x86_64-with-glibc2.39",
+    "processor": "x86_64",
+    "python": "3.12.3",
+    "r": "4.6.1",
+    "docker_storage_driver": "vfs"
+  },
+  "packages": {
+    "pyLeman2000": "0.1.0",
+    "py_default_image": "ghcr.io/cms-cambridge/pyleman2000-octave:dev",
+    "py_image_id": "sha256:0326bc231a251f7e28f182137551e91e160ac09d8715cb6c2e8f8829e567ecc2",
+    "leman2000R": {
+      "Version": "0.1.0",
+      "RemoteSha": "6067bfdfad2a5ce4910790cf6f7f2e64a7d7837b",
+      "RemoteUrl": ""
+    },
+    "r_image": "ghcr.io/pmcharrison/leman_2000:latest",
+    "r_image_id": "sha256:62a2fec1cdfe73185bc7b12f417fd76560f0d3cb83b17bea8eb81857e74da85b"
+  },
+  "parameters": {
+    "local_decay_sec": [
+      0.1,
+      0.5
+    ],
+    "global_decay_sec": [
+      1.0,
+      2.0
+    ],
+    "windows_short": [
+      [
+        0.0,
+        0.1
+      ],
+      [
+        0.1,
+        0.2
+      ]
+    ],
+    "windows_long": [
+      [
+        0.0,
+        1.0
+      ],
+      [
+        2.0,
+        3.0
+      ],
+      [
+        4.0,
+        5.0
+      ]
+    ],
+    "repeats": 3,
+    "warmup": 1
+  },
+  "audio": {
+    "short": {
+      "path": "/workspace/artifacts/benchmark/audio_short_hihat.wav",
+      "duration_sec": 0.3707936507936508,
+      "note": "packaged hihat.wav"
+    },
+    "long": {
+      "path": "/workspace/artifacts/benchmark/audio_5s_tiled_hihat.wav",
+      "duration_sec": 5.0,
+      "note": "hihat.wav tiled to 5.0 s, mono 16-bit 44.1 kHz"
+    }
+  },
+  "results": [
+    {
+      "audio": "short",
+      "implementation": "leman2000R",
+      "mode": "oneshot_default",
+      "label": "leman2000R oneshot_default (short)",
+      "times_sec": [
+        23.062,
+        23.115,
+        22.585
+      ],
+      "n": 3,
+      "mean_sec": 22.920666666666666,
+      "stdev_sec": 0.29190123900616266,
+      "min_sec": 22.585,
+      "median_sec": 23.062,
+      "p90_sec": 23.1044,
+      "max_sec": 23.115
+    },
+    {
+      "audio": "short",
+      "implementation": "pyLeman2000",
+      "mode": "oneshot_default",
+      "label": "pyLeman2000 oneshot_default (short)",
+      "times_sec": [
+        14.720725670000093,
+        15.01816193600007,
+        14.271121775999973
+      ],
+      "n": 3,
+      "mean_sec": 14.670003127333379,
+      "stdev_sec": 0.37609418024502195,
+      "min_sec": 14.271121775999973,
+      "median_sec": 14.720725670000093,
+      "p90_sec": 14.958674682800073,
+      "max_sec": 15.01816193600007
+    },
+    {
+      "audio": "short",
+      "implementation": "pyLeman2000",
+      "mode": "oneshot_detail5",
+      "label": "pyLeman2000 oneshot_detail5 (short)",
+      "times_sec": [
+        14.875370270000076,
+        14.196751038000002,
+        14.225799642000084
+      ],
+      "n": 3,
+      "mean_sec": 14.43264031666672,
+      "stdev_sec": 0.38369038824618035,
+      "min_sec": 14.196751038000002,
+      "median_sec": 14.225799642000084,
+      "p90_sec": 14.745456144400077,
+      "max_sec": 14.875370270000076,
+      "note": "keep_periodicity_pitch=True forces detail=5 like R"
+    },
+    {
+      "audio": "short",
+      "implementation": "pyLeman2000",
+      "mode": "session_default",
+      "label": "Python session default (short)",
+      "times_sec": [
+        1.5918327669999144,
+        1.5929259690001345,
+        1.57610968400013
+      ],
+      "n": 3,
+      "mean_sec": 1.5869561400000596,
+      "stdev_sec": 0.009409196483872976,
+      "min_sec": 1.57610968400013,
+      "median_sec": 1.5918327669999144,
+      "p90_sec": 1.5927073286000906,
+      "max_sec": 1.5929259690001345
+    },
+    {
+      "audio": "5s",
+      "implementation": "leman2000R",
+      "mode": "oneshot_default",
+      "label": "leman2000R oneshot_default (5s)",
+      "times_sec": [
+        28.416,
+        25.492,
+        27.756
+      ],
+      "n": 3,
+      "mean_sec": 27.221333333333334,
+      "stdev_sec": 1.533572734934125,
+      "min_sec": 25.492,
+      "median_sec": 27.756,
+      "p90_sec": 28.284,
+      "max_sec": 28.416
+    },
+    {
+      "audio": "5s",
+      "implementation": "pyLeman2000",
+      "mode": "oneshot_default",
+      "label": "pyLeman2000 oneshot_default (5s)",
+      "times_sec": [
+        33.47006186800013,
+        34.10135044599997,
+        34.40472293900007
+      ],
+      "n": 3,
+      "mean_sec": 33.99204508433339,
+      "stdev_sec": 0.47682132500286073,
+      "min_sec": 33.47006186800013,
+      "median_sec": 34.10135044599997,
+      "p90_sec": 34.344048440400044,
+      "max_sec": 34.40472293900007
+    },
+    {
+      "audio": "5s",
+      "implementation": "pyLeman2000",
+      "mode": "oneshot_detail5",
+      "label": "pyLeman2000 oneshot_detail5 (5s)",
+      "times_sec": [
+        35.46245464200001,
+        34.9865232210002,
+        33.874051778999956
+      ],
+      "n": 3,
+      "mean_sec": 34.774343214000055,
+      "stdev_sec": 0.8151816854693369,
+      "min_sec": 33.874051778999956,
+      "median_sec": 34.9865232210002,
+      "p90_sec": 35.36726835780005,
+      "max_sec": 35.46245464200001,
+      "note": "keep_periodicity_pitch=True forces detail=5 like R"
+    },
+    {
+      "audio": "5s",
+      "implementation": "pyLeman2000",
+      "mode": "session_default",
+      "label": "Python session default (5s)",
+      "times_sec": [
+        19.737536957999964,
+        20.108743601000015,
+        20.322198501999992
+      ],
+      "n": 3,
+      "mean_sec": 20.05615968699999,
+      "stdev_sec": 0.295856521420089,
+      "min_sec": 19.737536957999964,
+      "median_sec": 20.108743601000015,
+      "p90_sec": 20.279507521799996,
+      "max_sec": 20.322198501999992
+    }
+  ]
+}

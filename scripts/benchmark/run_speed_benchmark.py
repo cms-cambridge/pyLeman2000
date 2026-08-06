@@ -126,24 +126,14 @@ cat(sprintf("BENCH_ELAPSED_SEC=%.6f\\n", elapsed))
     )
 
 
-def _repeat(
-    label: str,
-    fn,
-    *,
-    repeats: int,
-    warmup: int,
-) -> dict:
-    print(f"  {label}: warmup={warmup}, repeats={repeats}", flush=True)
-    for i in range(warmup):
-        sec = fn()
-        print(f"    warmup[{i}] {sec:.3f}s", flush=True)
-    times: list[float] = []
-    for i in range(repeats):
-        sec = fn()
-        times.append(sec)
-        print(f"    run[{i}] {sec:.3f}s", flush=True)
-    summary = _summarize(times)
-    return {"label": label, "times_sec": times, **summary}
+def _docker_info_field(format_str: str) -> str:
+    proc = subprocess.run(
+        ["docker", "info", "--format", format_str],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    return proc.stdout.strip()
 
 
 def _docker_image_id(ref: str) -> str:
