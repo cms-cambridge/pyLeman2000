@@ -89,7 +89,6 @@ def _run_python_session(
         global_decay_sec=GLOBAL_DECAY,
         windows=windows,
         keep_periodicity_pitch=keep_periodicity_pitch,
-        show_progress=False,
     )
     return time.perf_counter() - t0
 
@@ -253,66 +252,79 @@ def main() -> int:
 
     for audio_label, wav, windows in cases:
         print(f"\n=== audio={audio_label} ({wav.name}) ===", flush=True)
-
-        meta["results"].append(
-            {
-                "audio": audio_label,
-                "implementation": "leman2000R",
-                "mode": "oneshot_default",
-                **_repeat(
-                    f"R oneshot default ({audio_label})",
-                    lambda w=wav, win=windows: _run_r(w, windows=win),
-                    repeats=args.repeats,
-                    warmup=args.warmup,
+        # Interleave implementations so Docker/OS cache warm-up affects both
+        # similarly, rather than finishing all R runs before Python.
+        conditions: list[tuple[str, str, object]] = [
+            (
+                "leman2000R",
+                "oneshot_default",
+                lambda w=wav, win=windows: _run_r(w, windows=win),
+            ),
+            (
+                "pyLeman2000",
+                "oneshot_default",
+                lambda w=wav, win=windows: _run_python_oneshot(
+                    w, windows=win, keep_periodicity_pitch=False
                 ),
-            }
-        )
-
-        meta["results"].append(
-            {
-                "audio": audio_label,
-                "implementation": "pyLeman2000",
-                "mode": "oneshot_default",
-                **_repeat(
-                    f"Python oneshot default ({audio_label})",
-                    lambda w=wav, win=windows: _run_python_oneshot(
-                        w, windows=win, keep_periodicity_pitch=False
-                    ),
-                    repeats=args.repeats,
-                    warmup=args.warmup,
-                ),
-            }
-        )
-
+            ),
+        ]
         if not args.skip_matched_detail:
-            meta["results"].append(
-                {
-                    "audio": audio_label,
-                    "implementation": "pyLeman2000",
-                    "mode": "oneshot_detail5",
-                    "note": "keep_periodicity_pitch=True forces detail=5 like R",
-                    **_repeat(
-                        f"Python oneshot detail=5 ({audio_label})",
-                        lambda w=wav, win=windows: _run_python_oneshot(
-                            w, windows=win, keep_periodicity_pitch=True
-                        ),
-                        repeats=args.repeats,
-                        warmup=args.warmup,
+            conditions.append(
+                (
+                    "pyLeman2000",
+                    "oneshot_detail5",
+                    lambda w=wav, win=windows: _run_python_oneshot(
+                        w, windows=win, keep_periodicity_pitch=True
                     ),
-                }
+                )
             )
+
+        print(
+            f"  interleaved oneshot warmup={args.warmup}, repeats={args.repeats}",
+            flush=True,
+        )
+        buckets: dict[tuple[str, str], list[float]] = {
+            (impl, mode): [] for impl, mode, _ in conditions
+        }
+        for phase, n in (("warmup", args.warmup), ("run", args.repeats)):
+            for i in range(n):
+                for impl, mode, fn in conditions:
+                    sec = fn()
+                    if phase == "run":
+                        buckets[(impl, mode)].append(sec)
+                    print(
+                        f"    {phase}[{i}] {impl}/{mode}: {sec:.3f}s",
+                        flush=True,
+                    )
+
+        for impl, mode, _ in conditions:
+            times = buckets[(impl, mode)]
+            row = {
+                "audio": audio_label,
+                "implementation": impl,
+                "mode": mode,
+                "label": f"{impl} {mode} ({audio_label})",
+                "times_sec": times,
+                **_summarize(times),
+            }
+            if mode == "oneshot_detail5":
+                row["note"] = (
+                    "keep_periodicity_pitch=True forces detail=5 like R"
+                )
+            meta["results"].append(row)
 
         if not args.skip_session:
             print(f"  Python warm session ({audio_label})", flush=True)
             with Leman2000Session(show_progress=False) as session:
-                # Session construction starts the container; warm it once.
-                _run_python_session(
-                    session,
-                    wav,
-                    windows=windows,
-                    keep_periodicity_pitch=False,
-                )
-                times: list[float] = []
+                for i in range(args.warmup):
+                    sec = _run_python_session(
+                        session,
+                        wav,
+                        windows=windows,
+                        keep_periodicity_pitch=False,
+                    )
+                    print(f"    warmup[{i}] {sec:.3f}s", flush=True)
+                times = []
                 for i in range(args.repeats):
                     sec = _run_python_session(
                         session,
@@ -322,7 +334,6 @@ def main() -> int:
                     )
                     times.append(sec)
                     print(f"    run[{i}] {sec:.3f}s", flush=True)
-            summary = _summarize(times)
             meta["results"].append(
                 {
                     "audio": audio_label,
@@ -330,7 +341,7 @@ def main() -> int:
                     "mode": "session_default",
                     "label": f"Python session default ({audio_label})",
                     "times_sec": times,
-                    **summary,
+                    **_summarize(times),
                 }
             )
 
@@ -367,6 +378,8 @@ def _render_markdown(meta: dict) -> str:
         f"- 5s: tiled hihat ({meta['audio']['long']['duration_sec']:.1f}s)",
         "",
         "Notes:",
+        "- Oneshot conditions are interleaved (R, Python default, Python detail5)",
+        "  within each repeat so Docker/OS cache effects are shared more evenly.",
         "- `leman2000R` always requests model `detail=5`.",
         "- pyLeman2000 default uses `detail=0` unless intermediate outputs are kept.",
         "- `oneshot_detail5` sets `keep_periodicity_pitch=True` so Python also uses detail=5.",
