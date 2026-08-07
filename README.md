@@ -156,6 +156,28 @@ with Leman2000Session() as session:
     )
 ```
 
+### Many files (worker pool)
+
+Each ``Leman2000Session`` handles one analysis at a time. For many files,
+use ``Leman2000Pool`` to keep several warm workers and map paths across them
+(threads wait on Docker; results stay in input order):
+
+```python
+from pyleman2000 import Leman2000Pool, example_wav_path
+
+paths = [example_wav_path(), example_wav_path()]
+with Leman2000Pool(workers=2, show_progress=False) as pool:
+    results = pool.map(
+        paths,
+        local_decay_sec=0.1,
+        global_decay_sec=1.0,
+    )
+```
+
+Size ``workers`` with machine RAM in mind: each MATLAB Runtime container is
+multi-gigabyte. On Apple Silicon under amd64 emulation, fewer workers often
+perform better.
+
 ### Optional Octave backend
 
 Pass `backend="octave"` for the license-free Octave image

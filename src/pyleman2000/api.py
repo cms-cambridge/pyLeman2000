@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping, Sequence
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
+from queue import Queue
 from typing import Literal
 
 import docker
@@ -353,3 +355,178 @@ class Leman2000Session:
             keep_periodicity_pitch=keep_periodicity_pitch,
             docker_image=self._docker_image,
         )
+
+
+class Leman2000Pool:
+    """Pool of warm sessions for parallel multi-file analysis.
+
+    Each worker is one :class:`Leman2000Session` (one Docker container /
+    MATLAB Runtime process) and handles a single request at a time. Files are
+    distributed across workers with a thread pool; the heavy work stays inside
+    Docker, so threads are appropriate.
+
+    Do not call :meth:`Leman2000Session.run` concurrently on one session.
+    Use this pool when analysing many files.
+
+    Examples
+    --------
+    >>> with Leman2000Pool(workers=4, show_progress=False) as pool:
+    ...     results = pool.map(
+    ...         [example_wav_path(), example_wav_path()],
+    ...         local_decay_sec=0.1,
+    ...         global_decay_sec=1.0,
+    ...     )
+    """
+
+    def __init__(
+        self,
+        *,
+        workers: int = 2,
+        backend: BackendName = "matlab",
+        docker_image: str | None = None,
+        docker_client: docker.DockerClient | None = None,
+        docker_timeout_sec: float | None = DEFAULT_TIMEOUT_SEC,
+        show_progress: bool = True,
+    ) -> None:
+        if not isinstance(workers, int) or isinstance(workers, bool) or workers < 1:
+            raise ValueError("workers must be an integer >= 1")
+        self._workers = workers
+        self._session_kwargs = {
+            "backend": backend,
+            "docker_image": docker_image,
+            "docker_client": docker_client,
+            "docker_timeout_sec": docker_timeout_sec,
+            "show_progress": show_progress,
+        }
+        self._sessions: list[Leman2000Session] = []
+        self._available: Queue[Leman2000Session] | None = None
+
+    def open(self) -> Leman2000Pool:
+        """Start ``workers`` warm sessions."""
+        if self._available is not None:
+            return self
+
+        sessions: list[Leman2000Session] = []
+        try:
+            for _ in range(self._workers):
+                session = Leman2000Session(**self._session_kwargs)
+                session.__enter__()
+                sessions.append(session)
+        except BaseException:
+            for session in sessions:
+                session.__exit__(None, None, None)
+            raise
+
+        available: Queue[Leman2000Session] = Queue()
+        for session in sessions:
+            available.put(session)
+        self._sessions = sessions
+        self._available = available
+        return self
+
+    def close(self) -> None:
+        """Close every pooled session."""
+        sessions = self._sessions
+        self._sessions = []
+        self._available = None
+        errors: list[BaseException] = []
+        for session in sessions:
+            try:
+                session.__exit__(None, None, None)
+            except BaseException as exc:  # noqa: BLE001 - collect all close errors
+                errors.append(exc)
+        if errors:
+            raise errors[0]
+
+    def __enter__(self) -> Leman2000Pool:
+        return self.open()
+
+    def __exit__(self, *exc_info: object) -> None:
+        self.close()
+
+    def map(
+        self,
+        input_files: Sequence[str | Path],
+        local_decay_sec: float | Sequence[float],
+        global_decay_sec: float | Sequence[float],
+        windows: Sequence[Sequence[float]] | None = None,
+        windowing_function: Callable[[np.ndarray], float] = np.mean,
+        keep_auditory_nerve: bool = False,
+        keep_periodicity_pitch: bool = False,
+    ) -> list[Leman2000Result]:
+        """Analyse many WAV files in parallel.
+
+        Parameters match :meth:`Leman2000Session.run`. Results are returned in
+        the same order as ``input_files``. Each pooled session still runs at
+        most one analysis at a time.
+
+        Parameters
+        ----------
+        input_files :
+            Paths to WAV files to analyse.
+        local_decay_sec :
+            Local decay parameter(s) in seconds (shared across files).
+        global_decay_sec :
+            Global decay parameter(s) in seconds (shared across files).
+        windows :
+            Optional time windows, as for :func:`leman2000`.
+        windowing_function :
+            Reduction used within each window.
+        keep_auditory_nerve :
+            If True, include auditory nerve outputs.
+        keep_periodicity_pitch :
+            If True, include periodicity pitch outputs.
+
+        Returns
+        -------
+        list[Leman2000Result]
+            One result per input path, in input order.
+        """
+        if self._available is None:
+            raise RuntimeError(
+                "Leman2000Pool is not open. Use it as a context manager "
+                "or call open() before map()."
+            )
+
+        files = list(input_files)
+        if not files:
+            return []
+
+        available = self._available
+        results: list[Leman2000Result | None] = [None] * len(files)
+
+        def _analyse(index: int, path: str | Path) -> tuple[int, Leman2000Result]:
+            session = available.get()
+            try:
+                result = session.run(
+                    input_file=path,
+                    local_decay_sec=local_decay_sec,
+                    global_decay_sec=global_decay_sec,
+                    windows=windows,
+                    windowing_function=windowing_function,
+                    keep_auditory_nerve=keep_auditory_nerve,
+                    keep_periodicity_pitch=keep_periodicity_pitch,
+                )
+                return index, result
+            finally:
+                available.put(session)
+
+        with ThreadPoolExecutor(max_workers=self._workers) as executor:
+            futures = [
+                executor.submit(_analyse, index, path)
+                for index, path in enumerate(files)
+            ]
+            try:
+                for future in as_completed(futures):
+                    index, result = future.result()
+                    results[index] = result
+            except BaseException:
+                for future in futures:
+                    future.cancel()
+                raise
+
+        ordered: list[Leman2000Result] = []
+        for result in results:
+            assert result is not None
+            ordered.append(result)
+        return ordered
