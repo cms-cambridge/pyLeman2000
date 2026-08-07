@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import threading
 import time
 from pathlib import Path
@@ -56,7 +57,16 @@ def test_wait_for_path_detects_dead_worker(tmp_path: Path) -> None:
         )
 
 
-def _fake_worker(work_dir: Path, data_dir: Path, stop: threading.Event) -> None:
+def _publish_atomically(path: Path, payload: dict) -> None:
+    """Write JSON the way the worker does, so readers never see a partial file."""
+    tmp_path = path.with_name(f"tmp-{path.name}")
+    tmp_path.write_text(json.dumps(payload))
+    os.replace(tmp_path, path)
+
+
+def _fake_worker(
+    work_dir: Path, data_dir: Path, stop: threading.Event, response: dict
+) -> None:
     """Simulate the compiled MATLAB worker against a host bind-mount layout."""
     (work_dir / "ready").touch()
     while not stop.is_set():
@@ -66,16 +76,18 @@ def _fake_worker(work_dir: Path, data_dir: Path, stop: threading.Event) -> None:
             request_id = req.name[len("req-") : -len(".json")]
             payload = json.loads(req.read_text())
             req.unlink()
-            # Map container paths back onto the host data dir.
-            out_name = Path(payload["out_file"]).name
-            (data_dir / out_name).write_text(json.dumps(PAYLOAD))
-            (work_dir / f"res-{request_id}.json").write_text(
-                json.dumps({"status": "ok"})
-            )
+            if response["status"] == "ok":
+                # Map container paths back onto the host data dir.
+                _publish_atomically(
+                    data_dir / Path(payload["out_file"]).name, PAYLOAD
+                )
+            _publish_atomically(work_dir / f"res-{request_id}.json", response)
         time.sleep(0.005)
 
 
-def _client_with_simulated_worker() -> MagicMock:
+def _client_with_simulated_worker(
+    response: dict | None = None,
+) -> MagicMock:
     """Mock Docker client whose start() launches a host-side fake worker."""
     client = MagicMock()
     client.images.get.return_value = MagicMock()
@@ -106,14 +118,22 @@ def _client_with_simulated_worker() -> MagicMock:
         state["stop"] = stop
         thread = threading.Thread(
             target=_fake_worker,
-            args=(state["work"], state["data"], stop),
+            args=(
+                state["work"],
+                state["data"],
+                stop,
+                response or {"status": "ok"},
+            ),
             daemon=True,
         )
         state["thread"] = thread
         thread.start()
 
     def reload() -> None:
-        if state["stop"].is_set():
+        # The real worker exits once it sees the stop file, which is what lets
+        # close() finish without waiting out its force-remove grace period.
+        thread = state["thread"]
+        if state["stop"].is_set() or (thread is not None and not thread.is_alive()):
             container.status = "exited"
 
     def remove(*, force: bool = False) -> None:
@@ -147,44 +167,9 @@ def test_matlab_worker_runner_round_trip() -> None:
 
 
 def test_matlab_worker_surfaces_error_status() -> None:
-    client = MagicMock()
-    client.images.get.return_value = MagicMock()
-    container = client.containers.create.return_value
-    container.status = "running"
-    work_holder: dict[str, Path] = {}
-
-    def create(**kwargs):
-        work = Path(
-            next(
-                host
-                for host, cfg in kwargs["volumes"].items()
-                if cfg["bind"] == CONTAINER_WORK_DIR
-            )
-        )
-        work_holder["work"] = work
-        return container
-
-    def start() -> None:
-        work_holder["work"].joinpath("ready").touch()
-
-        def fail_on_request() -> None:
-            while True:
-                reqs = list(work_holder["work"].glob("req-*.json"))
-                if reqs:
-                    req = reqs[0]
-                    request_id = req.name[len("req-") : -len(".json")]
-                    req.unlink()
-                    (
-                        work_holder["work"] / f"res-{request_id}.json"
-                    ).write_text(json.dumps({"status": "error", "message": "boom"}))
-                    return
-                time.sleep(0.005)
-
-        threading.Thread(target=fail_on_request, daemon=True).start()
-
-    client.containers.create.side_effect = create
-    container.start.side_effect = start
-
+    client = _client_with_simulated_worker(
+        response={"status": "error", "message": "boom"}
+    )
     with MatlabWorkerRunner(
         client=client, show_progress=False, ready_timeout_sec=2.0
     ) as runner:
