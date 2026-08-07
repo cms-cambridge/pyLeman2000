@@ -1,0 +1,61 @@
+{
+  "timestamp_utc": "2026-08-06T08:06:29.286449+00:00",
+  "image": "ghcr.io/pmcharrison/leman_2000:latest",
+  "parameters": {
+    "local": "0.1,0.5",
+    "global": "1.0,2.0",
+    "detail": "5"
+  },
+  "audio_durations_sec": {
+    "short": 0.3707936507936508,
+    "long": 5.0
+  },
+  "empty_container_cycle_sec": [
+    11.408357950999743,
+    11.273161183999946,
+    11.30379861900019
+  ],
+  "oneshot": {
+    "short_sec": [
+      21.482879500999843,
+      21.177161349000016,
+      21.385364484000092
+    ],
+    "long_sec": [
+      24.33118171299975,
+      24.408142150000003,
+      24.586694032000196
+    ]
+  },
+  "warm_exec": {
+    "short_sec": [
+      7.061526733000392,
+      7.097703615999762,
+      7.060067667000112
+    ],
+    "long_sec": [
+      10.202893076000237,
+      10.19315595199987,
+      10.203439855999932
+    ]
+  },
+  "decomposition_oneshot": {
+    "mean_short_sec": 21.34846844466665,
+    "mean_long_sec": 24.442005964999982,
+    "delta_sec": 3.0935375203333315,
+    "sec_per_audio_sec": 0.6682652029248385,
+    "estimated_fixed_overhead_sec": 21.10067995037579,
+    "estimated_compute_5s_sec": 3.3413260146241925,
+    "overhead_fraction_of_5s": 0.863295753245096
+  },
+  "decomposition_warm_exec": {
+    "mean_short_sec": 7.073099338666755,
+    "mean_long_sec": 10.199829628000012,
+    "delta_sec": 3.126730289333257,
+    "sec_per_audio_sec": 0.6754354965985297,
+    "estimated_fixed_overhead_sec": 6.822652145007364,
+    "estimated_compute_5s_sec": 3.3771774829926486,
+    "overhead_fraction_of_5s": 0.6688986379025581,
+    "note": "Fixed overhead here is mostly MATLAB Runtime startup per exec; container create/teardown already excluded."
+  }
+}

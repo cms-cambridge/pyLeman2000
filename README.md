@@ -144,6 +144,32 @@ with Leman2000Session() as session:
 Octave still starts on every `run`, but later calls in the same session are
 typically faster (filesystem caches stay warm), especially on Apple Silicon.
 
+### Optional compiled MATLAB backend
+
+When a MATLAB Compiler host has published
+`ghcr.io/cms-cambridge/pyleman2000-matlab:dev` (or you have built
+`pyleman2000-matlab:dev` locally), pass `backend="matlab"` to keep a compiled
+MATLAB Runtime worker alive across runs:
+
+```python
+with Leman2000Session(backend="matlab") as session:
+    result = session.run(
+        input_file=example_wav_path(),
+        local_decay_sec=0.1,
+        global_decay_sec=1.0,
+    )
+```
+
+The default remains `backend="octave"`. Build and publish the MATLAB image on
+a Linux host with MATLAB Compiler:
+
+```bash
+./scripts/build_matlab_image.sh           # local pyleman2000-matlab:dev
+./scripts/build_matlab_image.sh --push    # also push to GHCR
+```
+
+See `docker/matlab/README.md` for pins, provenance, and the worker protocol.
+
 ```python
 result.local_global_comparison.head()
 ```
@@ -198,10 +224,10 @@ Unit tests do not require Docker:
 
 ```bash
 python3 -m pip install -e ".[dev]"
-python3 -m pytest -v -m "not integration"
+python3 -m pytest -v -m "not integration and not matlab"
 ```
 
-Integration and R-snapshot tests require Docker. The package pulls
+Octave integration and R-snapshot tests require Docker. The package pulls
 `DEFAULT_IMAGE` from GHCR on first use (or build locally if you prefer):
 
 ```bash
@@ -211,10 +237,17 @@ docker pull "$(python3 -c 'from pyleman2000 import DEFAULT_IMAGE; print(DEFAULT_
 python3 -m pytest -v -m integration
 ```
 
+Compiled MATLAB smoke tests pull `DEFAULT_MATLAB_IMAGE` (no Compiler needed):
+
+```bash
+docker pull "$(python3 -c 'from pyleman2000 import DEFAULT_MATLAB_IMAGE; print(DEFAULT_MATLAB_IMAGE)')"
+python3 -m pytest -v -m matlab
+```
+
 Snapshot CSVs under `tests/snapshots/` were generated from
 [`leman2000R`](https://github.com/pmcharrison/leman2000R) via
-`scripts/generate_r_snapshots.R` (MATLAB backend). Octave integration tests
-compare against those archives with a looser tolerance (~`1e-5`).
+`scripts/generate_r_snapshots.R` (MATLAB backend). Octave and MATLAB CI
+jobs compare against those archives with a looser tolerance (~`1e-5`).
 
 ## References
 

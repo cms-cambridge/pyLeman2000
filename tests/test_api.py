@@ -274,3 +274,58 @@ def test_session_reuses_warm_runner(raw_result: dict, tmp_path: Path) -> None:
     assert runner.run.call_args_list[1].kwargs["local_decay_sec"] == [0.1, 0.5]
     assert second.windowed_local_global_comparison is not None
     runner.close.assert_called_once_with()
+
+
+def test_leman2000_matlab_backend_dispatches_to_matlab_runner(
+    raw_result: dict, tmp_path: Path
+) -> None:
+    wav = tmp_path / "tone.wav"
+    wav.write_bytes(example_wav_path().read_bytes())
+
+    with patch(
+        "pyleman2000.api.run_model_matlab", return_value=raw_result
+    ) as run_matlab:
+        with patch("pyleman2000.api.run_model") as run_octave:
+            result = leman2000(
+                input_file=wav,
+                local_decay_sec=0.1,
+                global_decay_sec=1.0,
+                backend="matlab",
+                show_progress=False,
+            )
+
+    assert isinstance(result, Leman2000Result)
+    run_matlab.assert_called_once()
+    run_octave.assert_not_called()
+    assert run_matlab.call_args.kwargs["image"] == (
+        "ghcr.io/cms-cambridge/pyleman2000-matlab:dev"
+    )
+
+
+def test_session_matlab_backend_uses_matlab_worker(
+    raw_result: dict, tmp_path: Path
+) -> None:
+    wav = tmp_path / "tone.wav"
+    wav.write_bytes(example_wav_path().read_bytes())
+    runner = MagicMock()
+    runner.run.return_value = raw_result
+
+    with patch("pyleman2000.api.MatlabWorkerRunner", return_value=runner) as ctor:
+        with patch("pyleman2000.api.WarmModelRunner") as octave_ctor:
+            with Leman2000Session(backend="matlab", show_progress=False) as session:
+                session.run(wav, local_decay_sec=0.1, global_decay_sec=1.0)
+
+    octave_ctor.assert_not_called()
+    ctor.assert_called_once()
+    assert ctor.call_args.kwargs["image"] == (
+        "ghcr.io/cms-cambridge/pyleman2000-matlab:dev"
+    )
+    runner.open.assert_called_once_with()
+    runner.close.assert_called_once_with()
+
+
+def test_rejects_unknown_backend(tmp_path: Path) -> None:
+    wav = tmp_path / "tone.wav"
+    wav.write_bytes(b"RIFF")
+    with pytest.raises(ValueError, match="backend must be"):
+        leman2000(wav, 0.1, 1.0, backend="julia")  # type: ignore[arg-type]

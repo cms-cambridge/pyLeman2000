@@ -14,4 +14,5 @@ venv/
 htmlcov/
 *.json
 !tests/fixtures/*.json
+!artifacts/benchmark/*.json
 .DS_Store
