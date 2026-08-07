@@ -45,4 +45,5 @@ include = [
 testpaths = ["tests"]
 markers = [
     "integration: tests that require Docker and the Octave model image",
+    "matlab: tests that require Docker and the compiled MATLAB worker image",
 ]

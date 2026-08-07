@@ -64,9 +64,9 @@ with Leman2000Session(backend="matlab") as session:
     )
 ```
 
-Default backend remains **Octave** until a published MATLAB image has been
-smoke-tested in CI against R snapshots. Override the image with
-`docker_image=` if you are testing a local build tag.
+Default backend remains **Octave**. The published MATLAB image is
+smoke-tested in CI (``pytest -m matlab``) against the archived R snapshots.
+Override the image with `docker_image=` if you are testing a local build tag.
 
 Environment variables the worker container expects:
 

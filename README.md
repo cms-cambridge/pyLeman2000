@@ -224,10 +224,10 @@ Unit tests do not require Docker:
 
 ```bash
 python3 -m pip install -e ".[dev]"
-python3 -m pytest -v -m "not integration"
+python3 -m pytest -v -m "not integration and not matlab"
 ```
 
-Integration and R-snapshot tests require Docker. The package pulls
+Octave integration and R-snapshot tests require Docker. The package pulls
 `DEFAULT_IMAGE` from GHCR on first use (or build locally if you prefer):
 
 ```bash
@@ -237,10 +237,17 @@ docker pull "$(python3 -c 'from pyleman2000 import DEFAULT_IMAGE; print(DEFAULT_
 python3 -m pytest -v -m integration
 ```
 
+Compiled MATLAB smoke tests pull `DEFAULT_MATLAB_IMAGE` (no Compiler needed):
+
+```bash
+docker pull "$(python3 -c 'from pyleman2000 import DEFAULT_MATLAB_IMAGE; print(DEFAULT_MATLAB_IMAGE)')"
+python3 -m pytest -v -m matlab
+```
+
 Snapshot CSVs under `tests/snapshots/` were generated from
 [`leman2000R`](https://github.com/pmcharrison/leman2000R) via
-`scripts/generate_r_snapshots.R` (MATLAB backend). Octave integration tests
-compare against those archives with a looser tolerance (~`1e-5`).
+`scripts/generate_r_snapshots.R` (MATLAB backend). Octave and MATLAB CI
+jobs compare against those archives with a looser tolerance (~`1e-5`).
 
 ## References
 
