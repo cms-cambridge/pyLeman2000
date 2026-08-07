@@ -1,0 +1,16 @@
+# Snapshot of a MathWorks-generated worker Dockerfile (from
+# compiler.package.docker). Prefer ./scripts/build_matlab_image.sh, which
+# regenerates this context from mcc output + a custom Runtime image.
+#
+# Sample:
+#   docker build -f Dockerfile.worker -t pyleman2000-matlab:dev .
+
+FROM pyleman2000-matlab-runtime:custom
+
+COPY ./applicationFilesForMATLABCompiler /usr/bin/mlrtapp
+RUN chmod -R a+rX /usr/bin/mlrtapp/*
+
+RUN if ["$(getent passwd root | cut -d: -f1)" = ""] ; then useradd -ms /bin/bash root ; fi
+USER root
+
+ENTRYPOINT ["/usr/bin/mlrtapp/leman_2000_worker"]

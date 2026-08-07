@@ -144,6 +144,32 @@ with Leman2000Session() as session:
 Octave still starts on every `run`, but later calls in the same session are
 typically faster (filesystem caches stay warm), especially on Apple Silicon.
 
+### Optional compiled MATLAB backend
+
+When a MATLAB Compiler host has published
+`ghcr.io/cms-cambridge/pyleman2000-matlab:dev` (or you have built
+`pyleman2000-matlab:dev` locally), pass `backend="matlab"` to keep a compiled
+MATLAB Runtime worker alive across runs:
+
+```python
+with Leman2000Session(backend="matlab") as session:
+    result = session.run(
+        input_file=example_wav_path(),
+        local_decay_sec=0.1,
+        global_decay_sec=1.0,
+    )
+```
+
+The default remains `backend="octave"`. Build and publish the MATLAB image on
+a Linux host with MATLAB Compiler:
+
+```bash
+./scripts/build_matlab_image.sh           # local pyleman2000-matlab:dev
+./scripts/build_matlab_image.sh --push    # also push to GHCR
+```
+
+See `docker/matlab/README.md` for pins, provenance, and the worker protocol.
+
 ```python
 result.local_global_comparison.head()
 ```

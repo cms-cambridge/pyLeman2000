@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
+from typing import Literal
 
 import docker
 import numpy as np
@@ -19,7 +20,14 @@ from pyleman2000.formatters import (
     validate_windows,
     window_local_global_comparison,
 )
+from pyleman2000.matlab_worker import (
+    DEFAULT_MATLAB_IMAGE,
+    MatlabWorkerRunner,
+    run_model_matlab,
+)
 from pyleman2000.types import Leman2000Result
+
+BackendName = Literal["octave", "matlab"]
 
 
 def example_wav_path() -> Path:
@@ -52,6 +60,21 @@ def _as_float_sequence(values: float | Sequence[float], name: str) -> list[float
             raise ValueError(f"{name} values must be positive")
         result.append(converted)
     return result
+
+
+def _resolve_backend(
+    backend: BackendName,
+    docker_image: str | None,
+) -> tuple[BackendName, str]:
+    if backend not in ("octave", "matlab"):
+        raise ValueError(
+            f"backend must be 'octave' or 'matlab', got {backend!r}"
+        )
+    if docker_image is not None:
+        return backend, docker_image
+    if backend == "matlab":
+        return backend, DEFAULT_MATLAB_IMAGE
+    return backend, DEFAULT_IMAGE
 
 
 def _prepare_analysis_args(
@@ -151,7 +174,8 @@ def leman2000(
     keep_auditory_nerve: bool = False,
     keep_periodicity_pitch: bool = False,
     *,
-    docker_image: str = DEFAULT_IMAGE,
+    backend: BackendName = "octave",
+    docker_image: str | None = None,
     docker_client: docker.DockerClient | None = None,
     docker_timeout_sec: float | None = DEFAULT_TIMEOUT_SEC,
     show_progress: bool = True,
@@ -160,13 +184,15 @@ def leman2000(
 
     This model was published in a 2000 Music Perception paper, and was shown
     to provide a psychoacoustic account of the Krumhansl-Kessler probe-tone
-    data. Computation runs in Docker via a license-free GNU Octave image
-    published to GHCR (``linux/amd64``; see ``docker/octave/``). The default
-    image is pulled on first use. On Apple Silicon, Docker Desktop runs it
-    under Rosetta/QEMU emulation.
+    data. Computation runs in Docker. The default ``backend="octave"`` uses a
+    license-free GNU Octave image published to GHCR (``linux/amd64``; see
+    ``docker/octave/``). ``backend="matlab"`` uses a compiled MATLAB Runtime
+    worker (see ``docker/matlab/``); that image must be built locally for now.
 
     For repeated analyses in one process, prefer :class:`Leman2000Session`,
-    which reuses a warm container and is typically faster after the first run.
+    which reuses a warm container. With the MATLAB backend the session keeps
+    the compiled worker process alive, which is where most of the speed gain
+    comes from.
 
     Parameters
     ----------
@@ -187,14 +213,16 @@ def leman2000(
         Reduction used within each window. Defaults to :func:`numpy.mean`.
     keep_auditory_nerve :
         If True, include auditory nerve simulation outputs. These can be
-        large nested dictionaries from the Octave model.
+        large nested dictionaries from the model.
     keep_periodicity_pitch :
         If True, include periodicity pitch outputs. These can be large
-        nested dictionaries from the Octave model.
+        nested dictionaries from the model.
+    backend :
+        ``"octave"`` (default) or ``"matlab"``.
     docker_image :
-        Docker image providing the model. Defaults to :data:`DEFAULT_IMAGE`
-        (GHCR). Local builds use ``pyleman2000-octave:dev`` from
-        ``./scripts/build_octave_image.sh``.
+        Docker image providing the model. Defaults to the Octave GHCR image
+        or ``pyleman2000-matlab:dev`` / ``ghcr.io/cms-cambridge/pyleman2000-matlab:dev``
+        for the MATLAB backend (see ``./scripts/build_matlab_image.sh``).
     docker_client :
         Optional Docker SDK client. Useful for testing.
     docker_timeout_sec :
@@ -209,6 +237,7 @@ def leman2000(
         Structured model output, including a long-form local/global
         comparison DataFrame and optional windowed summaries.
     """
+    backend, image = _resolve_backend(backend, docker_image)
     path, local_vals, global_vals, detail = _prepare_analysis_args(
         input_file,
         local_decay_sec,
@@ -218,12 +247,13 @@ def leman2000(
         keep_auditory_nerve,
         keep_periodicity_pitch,
     )
-    raw = run_model(
+    runner = run_model_matlab if backend == "matlab" else run_model
+    raw = runner(
         input_file=path,
         local_decay_sec=local_vals,
         global_decay_sec=global_vals,
         detail=detail,
-        image=docker_image,
+        image=image,
         client=docker_client,
         timeout_sec=docker_timeout_sec,
         show_progress=show_progress,
@@ -234,17 +264,17 @@ def leman2000(
         windowing_function=windowing_function,
         keep_auditory_nerve=keep_auditory_nerve,
         keep_periodicity_pitch=keep_periodicity_pitch,
-        docker_image=docker_image,
+        docker_image=image,
     )
 
 
 class Leman2000Session:
     """Reuse one Docker container across multiple model runs.
 
-    Octave still starts on every analysis, but keeping the container alive
-    warms filesystem caches. On Apple Silicon (emulated amd64) later runs in
-    the same session are typically faster than calling :func:`leman2000`
-    repeatedly.
+    With ``backend="octave"`` (default), Octave still starts on every
+    analysis, but keeping the container alive warms filesystem caches. With
+    ``backend="matlab"``, the compiled MATLAB Runtime worker stays loaded,
+    which is typically much faster for repeated analyses.
 
     Examples
     --------
@@ -259,14 +289,20 @@ class Leman2000Session:
     def __init__(
         self,
         *,
-        docker_image: str = DEFAULT_IMAGE,
+        backend: BackendName = "octave",
+        docker_image: str | None = None,
         docker_client: docker.DockerClient | None = None,
         docker_timeout_sec: float | None = DEFAULT_TIMEOUT_SEC,
         show_progress: bool = True,
     ) -> None:
-        self._docker_image = docker_image
-        self._runner = WarmModelRunner(
-            image=docker_image,
+        backend, image = _resolve_backend(backend, docker_image)
+        self._backend = backend
+        self._docker_image = image
+        runner_cls = (
+            MatlabWorkerRunner if backend == "matlab" else WarmModelRunner
+        )
+        self._runner = runner_cls(
+            image=image,
             client=docker_client,
             timeout_sec=docker_timeout_sec,
             show_progress=show_progress,

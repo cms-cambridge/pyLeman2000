@@ -44,6 +44,12 @@ _BUILD_IMAGE_HINT = (
     "  ./scripts/build_octave_image.sh\n"
     "See docker/octave/ and the README for details."
 )
+_MATLAB_BUILD_HINT = (
+    "Build the compiled MATLAB worker on a Linux host with MATLAB Compiler:\n"
+    "  ./scripts/build_matlab_image.sh\n"
+    "See docker/matlab/README.md. Published images live at\n"
+    "  ghcr.io/cms-cambridge/pyleman2000-matlab"
+)
 
 
 class Leman2000DockerError(RuntimeError):
@@ -96,12 +102,28 @@ def _is_local_build_image(image: str) -> bool:
     """Return True for images that must be built locally, not pulled."""
     name = image.split("@", 1)[0]
     repository, _tag = parse_repository_tag(name)
-    return repository == "pyleman2000-octave"
+    # Bare local tags (no registry). Published GHCR images remain pullable.
+    return repository in {
+        "pyleman2000-octave",
+        "pyleman2000-matlab",
+        "pyleman2000-matlab-worker",
+        "pyleman2000-matlab-runtime",
+    }
 
 
 def _missing_local_image_error(image: str) -> Leman2000DockerError:
+    name = image.split("@", 1)[0]
+    repository, _tag = parse_repository_tag(name)
+    if repository in {
+        "pyleman2000-matlab",
+        "pyleman2000-matlab-worker",
+        "pyleman2000-matlab-runtime",
+    }:
+        hint = _MATLAB_BUILD_HINT
+    else:
+        hint = _BUILD_IMAGE_HINT
     return Leman2000DockerError(
-        f"Docker image {image!r} is not available locally. {_BUILD_IMAGE_HINT}"
+        f"Docker image {image!r} is not available locally. {hint}"
     )
 
 
