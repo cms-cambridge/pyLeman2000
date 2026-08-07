@@ -11,12 +11,12 @@ from pyleman2000.progress import format_bytes
 from pyleman2000.worker_sizing import (
     MATLAB_IMAGE_SIZE_MAX_BYTES,
     MATLAB_IMAGE_SIZE_MIN_BYTES,
-    MATLAB_RAM_PER_WORKER_BYTES,
     MATLAB_WARM_RSS_MIN_BYTES,
     OCTAVE_IMAGE_SIZE_MAX_BYTES,
     OCTAVE_IMAGE_SIZE_MIN_BYTES,
-    OCTAVE_RAM_PER_WORKER_BYTES,
     OCTAVE_WARM_RSS_MIN_BYTES,
+    ram_per_worker_bytes,
+    wav_duration_sec,
 )
 from tests.docker_support import (
     container_memory_usage_bytes,
@@ -59,6 +59,11 @@ def test_container_memory_usage_falls_back_to_raw_usage() -> None:
     assert container_memory_usage_bytes({"memory_stats": {"usage": 42}}) == 42
 
 
+def test_container_memory_usage_none_without_accounting() -> None:
+    """Nested/unprivileged Docker reports no usage field; report unavailable."""
+    assert container_memory_usage_bytes({"memory_stats": {"stats": {}}}) is None
+
+
 @pytest.mark.matlab
 @pytest.mark.skipif(
     not docker_daemon_available(),
@@ -84,12 +89,13 @@ def test_matlab_image_size_within_budget() -> None:
     reason="Docker daemon not available",
 )
 def test_matlab_warm_container_rss_within_budget() -> None:
-    """A ready MATLAB worker must fit under the per-worker RSS budget."""
+    """A ready MATLAB worker must fit the RAM budget auto-sizing assumes."""
+    wav = example_wav_path()
     with MatlabWorkerRunner(
         image=DEFAULT_MATLAB_IMAGE, show_progress=False
     ) as runner:
         runner.run(
-            example_wav_path(),
+            wav,
             local_decay_sec=[0.1],
             global_decay_sec=[1.0],
             detail=0,
@@ -98,10 +104,16 @@ def test_matlab_warm_container_rss_within_budget() -> None:
         stats = runner._container.stats(stream=False)
         usage = container_memory_usage_bytes(stats)
 
-    assert MATLAB_WARM_RSS_MIN_BYTES <= usage <= MATLAB_RAM_PER_WORKER_BYTES, (
+    if usage is None:
+        pytest.skip("Docker reports no cgroup memory accounting on this host")
+
+    budget = ram_per_worker_bytes(
+        "matlab", max_audio_sec=wav_duration_sec(wav)
+    )
+    assert MATLAB_WARM_RSS_MIN_BYTES <= usage <= budget, (
         f"MATLAB warm worker used {format_bytes(usage)}; expected between "
         f"{format_bytes(MATLAB_WARM_RSS_MIN_BYTES)} and "
-        f"{format_bytes(MATLAB_RAM_PER_WORKER_BYTES)}"
+        f"{format_bytes(budget)}"
     )
 
 
@@ -135,14 +147,16 @@ def test_octave_warm_container_rss_within_budget() -> None:
     import time
 
     peak = 0
+    sampled = False
     stop = threading.Event()
+    wav = example_wav_path()
 
     with WarmModelRunner(image=DEFAULT_IMAGE, show_progress=False) as runner:
         assert runner._container is not None
         container = runner._container
 
         def _watch() -> None:
-            nonlocal peak
+            nonlocal peak, sampled
             while not stop.is_set():
                 try:
                     usage = container_memory_usage_bytes(
@@ -151,14 +165,16 @@ def test_octave_warm_container_rss_within_budget() -> None:
                 except Exception:
                     time.sleep(0.2)
                     continue
-                peak = max(peak, usage)
+                if usage is not None:
+                    sampled = True
+                    peak = max(peak, usage)
                 time.sleep(0.2)
 
         watcher = threading.Thread(target=_watch, daemon=True)
         watcher.start()
         try:
             runner.run(
-                example_wav_path(),
+                wav,
                 local_decay_sec=[0.1],
                 global_decay_sec=[1.0],
                 detail=0,
@@ -169,8 +185,14 @@ def test_octave_warm_container_rss_within_budget() -> None:
             stop.set()
             watcher.join(timeout=5.0)
 
-    assert OCTAVE_WARM_RSS_MIN_BYTES <= peak <= OCTAVE_RAM_PER_WORKER_BYTES, (
+    if not sampled:
+        pytest.skip("Docker reports no cgroup memory accounting on this host")
+
+    budget = ram_per_worker_bytes(
+        "octave", max_audio_sec=wav_duration_sec(wav)
+    )
+    assert OCTAVE_WARM_RSS_MIN_BYTES <= peak <= budget, (
         f"Octave warm container peak was {format_bytes(peak)}; expected "
         f"between {format_bytes(OCTAVE_WARM_RSS_MIN_BYTES)} and "
-        f"{format_bytes(OCTAVE_RAM_PER_WORKER_BYTES)}"
+        f"{format_bytes(budget)}"
     )

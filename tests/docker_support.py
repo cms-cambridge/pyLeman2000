@@ -78,12 +78,16 @@ def docker_image_size_bytes(image: str) -> int:
         client.close()
 
 
-def container_memory_usage_bytes(stats: dict[str, Any]) -> int:
+def container_memory_usage_bytes(stats: dict[str, Any]) -> int | None:
     """Return approximate working-set memory from a Docker stats payload.
 
     Prefers usage minus reclaimable file cache when those fields exist
     (cgroup v1 ``cache`` or cgroup v2 ``inactive_file``), otherwise falls
     back to raw ``memory_stats.usage``.
+
+    Returns ``None`` when the daemon reports no ``usage`` field, which
+    happens where cgroup memory accounting is unavailable (for example
+    Docker nested inside an unprivileged container).
 
     Parameters
     ----------
@@ -92,12 +96,15 @@ def container_memory_usage_bytes(stats: dict[str, Any]) -> int:
 
     Returns
     -------
-    int
-        Estimated bytes of memory in active use.
+    int or None
+        Estimated bytes of memory in active use, or ``None`` when the host
+        does not expose memory accounting.
     """
     memory = stats.get("memory_stats")
     if not isinstance(memory, dict):
         raise TypeError("stats['memory_stats'] must be a mapping")
+    if "usage" not in memory:
+        return None
     usage = int(memory["usage"])
     if usage < 0:
         raise ValueError(f"memory usage must be non-negative, got {usage}")
