@@ -2,20 +2,77 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 
 def docker_daemon_available() -> bool:
     """Return True when the Docker daemon responds to ping."""
     try:
         import docker
-        from docker.errors import DockerException
+    except ImportError:
+        return False
+    from docker.errors import DockerException
 
+    try:
         client = docker.from_env()
-        try:
-            client.ping()
-            return True
-        except DockerException:
-            return False
-        finally:
-            client.close()
     except Exception:
         return False
+    try:
+        client.ping()
+        return True
+    except DockerException:
+        return False
+    finally:
+        try:
+            client.close()
+        except Exception:
+            pass
+
+
+def image_size_bytes(image_attrs: dict[str, Any]) -> int:
+    """Return the on-disk image size from ``docker image inspect`` attrs.
+
+    Parameters
+    ----------
+    image_attrs :
+        The ``attrs`` mapping from a Docker SDK image object (or an equivalent
+        inspect payload).
+
+    Returns
+    -------
+    int
+        Size in bytes.
+
+    Raises
+    ------
+    KeyError, TypeError, ValueError
+        If ``Size`` is missing or not a non-negative integer.
+    """
+    size = image_attrs["Size"]
+    size_int = int(size)
+    if size_int < 0:
+        raise ValueError(f"Image Size must be non-negative, got {size_int}")
+    return size_int
+
+
+def docker_image_size_bytes(image: str) -> int:
+    """Return the on-disk size of a local Docker image.
+
+    Parameters
+    ----------
+    image :
+        Image reference (tag or digest). The image must already exist locally
+        (CI pulls it before the size tests run).
+
+    Returns
+    -------
+    int
+        Size in bytes from ``docker image inspect``.
+    """
+    import docker
+
+    client = docker.from_env()
+    try:
+        return image_size_bytes(client.images.get(image).attrs)
+    finally:
+        client.close()
