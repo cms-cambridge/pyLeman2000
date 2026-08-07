@@ -29,7 +29,7 @@ from pyleman2000.matlab_worker import (
 )
 from pyleman2000.progress import BatchProgress
 from pyleman2000.types import Leman2000BatchResult, Leman2000Result, combine_results
-from pyleman2000.worker_sizing import choose_worker_count
+from pyleman2000.worker_sizing import choose_worker_count, wav_durations_sec
 
 BackendName = Literal["octave", "matlab"]
 
@@ -291,9 +291,10 @@ def leman2000_batch(
     """Analyse many WAV files with a warm worker pool.
 
     Opens a :class:`Leman2000Pool`, maps ``input_files`` across workers, and
-    returns stacked DataFrames. Worker count defaults to a RAM-aware choice
-    (see :func:`pyleman2000.worker_sizing.choose_worker_count`), overridable
-    via ``workers`` or the ``PYLEMAN2000_WORKERS`` environment variable.
+    returns stacked DataFrames. Worker count defaults to one and grows only
+    when total audio duration justifies each extra worker's startup (see
+    :func:`pyleman2000.worker_sizing.choose_worker_count`), overridable via
+    ``workers`` or the ``PYLEMAN2000_WORKERS`` environment variable.
 
     When ``show_progress`` is True, a batch progress line is shown and
     per-container run progress is suppressed to avoid overlapping status
@@ -316,8 +317,9 @@ def leman2000_batch(
     keep_periodicity_pitch :
         If True, include periodicity pitch outputs on each per-file result.
     workers :
-        Explicit worker count. When omitted, chosen from available RAM,
-        backend, file count, and emulation heuristics.
+        Explicit worker count. When omitted, chosen from total audio
+        duration, capped by file count, CPU count, available RAM, and
+        emulation heuristics.
     backend :
         ``"matlab"`` (default) or ``"octave"``.
     docker_image :
@@ -339,8 +341,11 @@ def leman2000_batch(
         empty = combine_results([], [], workers=1)
         return empty
 
+    durations = wav_durations_sec(files)
     n_workers = choose_worker_count(
         len(files),
+        total_audio_sec=sum(durations) if durations else None,
+        max_audio_sec=max(durations) if durations else None,
         workers=workers,
         backend=backend,
     )

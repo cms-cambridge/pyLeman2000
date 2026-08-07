@@ -41,6 +41,46 @@ Reference timings on the same host: worker startup (Runtime load plus
 - Speedup is sublinear (2.06x on 4 cores at best) because the compiled MATLAB
   worker is already multithreaded, so workers contend for the same cores.
 
+## Cost scales with audio length, not grid size
+
+Extra decay combinations are nearly free, because `IPEMCalcANI` and
+`IPEMPeriodicityPitch` run once per file while only `IPEMContextualityIndex`
+repeats per combination. Warm-run times on the same host:
+
+| Audio | 1 combo | 4 combos | 16 combos | 36 combos |
+| --- | ---: | ---: | ---: | ---: |
+| 5 s | 2.15 s | 2.12 s | 2.20 s | 2.44 s |
+| 30 s | 12.22 s | 12.53 s | 13.48 s | 14.79 s |
+
+A 36x larger grid costs 13% (5 s) to 21% (30 s). Compute and memory instead
+track audio length, both close to linear:
+
+| Audio | Compute | Peak worker memory (PSS) |
+| --- | ---: | ---: |
+| 30 s | 13.7 s | 900 MB |
+| 60 s | 26.0 s | 1.1 GB |
+| 120 s | 51.5 s | 1.8 GB |
+
+That is roughly 0.43 s of compute and 10 MB of memory per audio-second, on a
+625 MB idle baseline. Worker sizing therefore keys off total audio duration,
+and the per-worker RAM budget grows with the longest file.
+
+## Auto-sizing validation
+
+Re-running the same scenarios with the duration-based heuristic (no explicit
+`workers=`), against the manual results above:
+
+| Scenario | Chosen workers | Wall | vs `workers=1` | vs best manual |
+| --- | ---: | ---: | ---: | ---: |
+| 4 x 5 s | 1 | 14.91 s | 0.93x | 0.90x |
+| 8 x 5 s | 2 | 19.77 s | 1.16x | 0.91x |
+| 4 x 30 s | 4 | 35.69 s | 1.58x | 0.95x |
+| 8 x 30 s | 4 | 51.68 s | 1.97x | 0.96x |
+
+The heuristic never selects a losing configuration and lands within 4-10% of
+the best hand-picked worker count (single repeat, so most of that gap is
+run-to-run noise).
+
 ## Caveats
 
 - 4-core VM with 15 GB RAM; a 24-thread workstation should show larger gains

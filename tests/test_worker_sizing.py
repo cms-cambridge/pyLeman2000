@@ -1,78 +1,154 @@
-"""Tests for RAM-aware worker sizing."""
+"""Tests for audio-duration-driven worker sizing."""
 
 from __future__ import annotations
 
+import wave
+from pathlib import Path
+
 import pytest
 
+from pyleman2000 import example_wav_path
 from pyleman2000.worker_sizing import (
-    FALLBACK_WORKERS,
-    MATLAB_RAM_PER_WORKER_BYTES,
+    AUDIO_SEC_PER_WORKER,
     WORKERS_ENV,
     choose_worker_count,
     is_likely_emulated_amd64,
+    ram_per_worker_bytes,
+    wav_duration_sec,
+    wav_durations_sec,
 )
+
+PLENTY_RAM = 100 * 1024**3
+
+
+def _choose(n_files: int, audio_sec: float | None, **kwargs) -> int:
+    """Call choose_worker_count with generous, deterministic caps."""
+    defaults = {
+        "total_audio_sec": audio_sec,
+        "available_ram": PLENTY_RAM,
+        "cpu_count": 64,
+        "emulated": False,
+        "environ": {},
+    }
+    defaults.update(kwargs)
+    return choose_worker_count(n_files, **defaults)
+
+
+def test_short_audio_stays_sequential() -> None:
+    # 4 x 5 s: benchmarked as slower with extra workers.
+    assert _choose(4, 20.0) == 1
+
+
+def test_long_audio_scales_up() -> None:
+    # 4 x 30 s: benchmarked 1.67x faster at 4 workers.
+    assert _choose(4, 120.0) == 4
+
+
+def test_workers_track_audio_per_worker_budget() -> None:
+    assert _choose(100, 3 * AUDIO_SEC_PER_WORKER) == 3
+
+
+def test_unknown_duration_falls_back_to_one_worker() -> None:
+    assert _choose(8, None) == 1
+
+
+def test_capped_by_file_count() -> None:
+    assert _choose(2, 1000.0) == 2
+
+
+def test_capped_by_cpu_count() -> None:
+    assert _choose(100, 1000.0, cpu_count=2) == 2
+
+
+def test_capped_by_available_ram() -> None:
+    ram = 2 * ram_per_worker_bytes("matlab", max_audio_sec=30.0)
+    assert (
+        _choose(
+            100,
+            1000.0,
+            max_audio_sec=30.0,
+            available_ram=ram,
+            backend="matlab",
+        )
+        == 2
+    )
+
+
+def test_ram_budget_grows_with_audio_length() -> None:
+    short = ram_per_worker_bytes("matlab", max_audio_sec=5.0)
+    long = ram_per_worker_bytes("matlab", max_audio_sec=300.0)
+    assert long > short
+    # Measured peak was ~1.8 GB for 120 s audio; the budget must cover it.
+    assert ram_per_worker_bytes("matlab", max_audio_sec=120.0) >= 1.8 * 1024**3
+
+
+def test_octave_ram_budget_exceeds_matlab() -> None:
+    assert ram_per_worker_bytes("octave", 30.0) > ram_per_worker_bytes(
+        "matlab", 30.0
+    )
+
+
+def test_explicit_workers_override_duration() -> None:
+    assert _choose(8, 10.0, workers=4) == 4
 
 
 def test_explicit_workers_capped_by_file_count() -> None:
-    assert choose_worker_count(3, workers=8, available_ram=64 * 1024**3) == 3
-
-
-def test_ram_budget_selects_workers() -> None:
-    ram = 3 * MATLAB_RAM_PER_WORKER_BYTES
-    assert (
-        choose_worker_count(
-            10,
-            backend="matlab",
-            available_ram=ram,
-            emulated=False,
-            environ={},
-        )
-        == 3
-    )
+    assert _choose(3, 1000.0, workers=8) == 3
 
 
 def test_env_override(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv(WORKERS_ENV, "5")
-    assert (
-        choose_worker_count(
-            20,
-            available_ram=100 * 1024**3,
-            emulated=False,
-        )
-        == 5
-    )
-
-
-def test_fallback_without_ram_info() -> None:
-    assert (
-        choose_worker_count(
-            20,
-            available_ram=None,
-            emulated=False,
-            environ={},
-        )
-        == FALLBACK_WORKERS
-    )
+    assert choose_worker_count(
+        20,
+        total_audio_sec=10.0,
+        available_ram=PLENTY_RAM,
+        cpu_count=64,
+        emulated=False,
+    ) == 5
 
 
 def test_emulated_hard_cap() -> None:
-    assert (
-        choose_worker_count(
-            20,
-            available_ram=100 * 1024**3,
-            emulated=True,
-            environ={},
-        )
-        == 4
-    )
+    assert _choose(20, 10_000.0, emulated=True) == 4
 
 
 def test_rejects_invalid_workers() -> None:
     with pytest.raises(ValueError, match="workers"):
-        choose_worker_count(3, workers=0)
+        _choose(3, 100.0, workers=0)
 
 
 def test_is_likely_emulated_amd64() -> None:
     assert is_likely_emulated_amd64("arm64")
     assert is_likely_emulated_amd64("aarch64")
     assert not is_likely_emulated_amd64("x86_64")
+
+
+def test_wav_duration_reads_header() -> None:
+    duration = wav_duration_sec(example_wav_path())
+    assert duration == pytest.approx(0.3708, abs=1e-3)
+
+
+def test_wav_duration_returns_none_for_non_wav(tmp_path: Path) -> None:
+    bogus = tmp_path / "not_audio.wav"
+    bogus.write_bytes(b"definitely not a wav")
+    assert wav_duration_sec(bogus) is None
+
+
+def test_durations_reported_per_file(tmp_path: Path) -> None:
+    source = example_wav_path()
+    with wave.open(str(source), "rb") as handle:
+        params = handle.getparams()
+        frames = handle.readframes(params.nframes)
+    doubled = tmp_path / "doubled.wav"
+    with wave.open(str(doubled), "wb") as handle:
+        handle.setparams(params)
+        handle.writeframes(frames * 2)
+
+    single = wav_duration_sec(source)
+    durations = wav_durations_sec([source, doubled])
+    assert durations == pytest.approx([single, single * 2], rel=1e-6)
+
+
+def test_durations_are_none_when_any_file_unreadable(tmp_path: Path) -> None:
+    bogus = tmp_path / "bad.wav"
+    bogus.write_bytes(b"nope")
+    assert wav_durations_sec([example_wav_path(), bogus]) is None

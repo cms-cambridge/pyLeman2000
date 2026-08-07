@@ -81,9 +81,9 @@ included here.
 
 ## Analysing many files
 
-For many files, use `leman2000_batch`: it opens a worker pool, picks a
-RAM-aware worker count (override with `workers=` or `PYLEMAN2000_WORKERS`),
-shows progress, and returns stacked DataFrames:
+For many files, use `leman2000_batch`: it opens a worker pool, picks a worker
+count from the total audio duration (override with `workers=` or
+`PYLEMAN2000_WORKERS`), shows progress, and returns stacked DataFrames:
 
 ```python
 from pyleman2000 import example_wav_path, leman2000_batch
@@ -101,6 +101,10 @@ batch.local_global_comparison.head()
 
 `batch.results` still holds per-file `Leman2000Result` objects when you need
 `keep_*` payloads.
+
+Extra workers only pay off once each has enough audio to offset the ~5 s
+worker startup, so short files stay sequential by default. See
+`artifacts/benchmark/batch_scaling.md` for the measurements behind this.
 
 ## Octave backend
 
