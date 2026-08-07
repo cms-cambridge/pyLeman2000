@@ -366,21 +366,22 @@ class BatchProgress:
             Number of completed files so far.
         """
         self._completed = max(0, min(int(completed), self._n_files))
-        self._draw()
+        # Always draw the terminal state so a finished batch shows N/N even if
+        # the last update would otherwise be throttled or below a step.
+        self._draw(force=self._n_files > 0 and self._completed >= self._n_files)
 
     def close(self) -> None:
-        """Finish the display, leaving the cursor on a fresh line."""
+        """Finish the display at the current count, on a fresh line.
+
+        Does not synthesize a completed count, so an aborted batch reports how
+        many files actually finished rather than a misleading ``N/N``.
+        """
         if self._closed:
             return
         self._closed = True
         out = self._stream if self._stream is not None else sys.stderr
         if out is None:
             return
-        if self._n_files > 0 and self._completed < self._n_files:
-            self._completed = self._n_files
-            self._closed = False
-            self._draw(force=True)
-            self._closed = True
         if getattr(out, "isatty", lambda: False)() and self._line_length > 0:
             out.write("\n")
             out.flush()

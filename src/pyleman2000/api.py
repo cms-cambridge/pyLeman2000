@@ -81,6 +81,22 @@ def _resolve_backend(
     return backend, DEFAULT_IMAGE
 
 
+def _normalize_input_files(
+    input_files: Sequence[str | Path],
+) -> list[str | Path]:
+    """Return ``input_files`` as a list, rejecting a bare string or bytes.
+
+    A single path is a common mistake here: ``str``/``bytes`` are sequences,
+    so iterating one silently yields single characters. Fail loudly instead.
+    """
+    if isinstance(input_files, (str, bytes, Path)):
+        raise TypeError(
+            "input_files must be a sequence of paths, not a single path. "
+            "Wrap it in a list, e.g. [input_file]."
+        )
+    return list(input_files)
+
+
 def _prepare_analysis_args(
     input_file: str | Path,
     local_decay_sec: float | Sequence[float],
@@ -317,9 +333,11 @@ def leman2000_batch(
     keep_periodicity_pitch :
         If True, include periodicity pitch outputs on each per-file result.
     workers :
-        Explicit worker count. When omitted, chosen from total audio
-        duration, capped by file count, CPU count, available RAM, and
-        emulation heuristics.
+        Explicit worker count. Honoured as given (capped only by the number
+        of files), so it can oversubscribe memory; the automatic RAM/CPU
+        caps apply only when this is omitted. When omitted, the count is
+        chosen from total audio duration, capped by file count, CPU count,
+        available RAM (including cgroup limits), and emulation heuristics.
     backend :
         ``"matlab"`` (default) or ``"octave"``.
     docker_image :
@@ -336,7 +354,7 @@ def leman2000_batch(
     Leman2000BatchResult
         Combined ``files`` / correlation tables plus per-file ``results``.
     """
-    files = list(input_files)
+    files = _normalize_input_files(input_files)
     if not files:
         empty = combine_results([], [], workers=1)
         return empty
@@ -470,7 +488,10 @@ class Leman2000Pool:
     Docker, so threads are appropriate.
 
     Do not call :meth:`Leman2000Session.run` concurrently on one session.
-    Use this pool when analysing many files.
+    Use this pool when analysing many files. ``workers`` defaults to 1;
+    extra workers only pay off when each has enough audio to offset the
+    per-worker container startup (see :func:`leman2000_batch`, which sizes
+    this automatically).
 
     Examples
     --------
@@ -485,7 +506,7 @@ class Leman2000Pool:
     def __init__(
         self,
         *,
-        workers: int = 2,
+        workers: int = 1,
         backend: BackendName = "matlab",
         docker_image: str | None = None,
         docker_client: docker.DockerClient | None = None,
@@ -596,7 +617,7 @@ class Leman2000Pool:
                 "or call open() before map()."
             )
 
-        files = list(input_files)
+        files = _normalize_input_files(input_files)
         if not files:
             return []
 

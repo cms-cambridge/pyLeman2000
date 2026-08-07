@@ -96,6 +96,21 @@ def test_explicit_workers_capped_by_file_count() -> None:
     assert _choose(3, 1000.0, workers=8) == 3
 
 
+def test_explicit_workers_bypass_ram_and_cpu_caps() -> None:
+    # An explicit request is honoured even when auto-sizing would cap it.
+    assert (
+        choose_worker_count(
+            8,
+            total_audio_sec=10.0,
+            workers=8,
+            available_ram=1,
+            cpu_count=1,
+            emulated=True,
+        )
+        == 8
+    )
+
+
 def test_env_override(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv(WORKERS_ENV, "5")
     assert choose_worker_count(
@@ -109,6 +124,29 @@ def test_env_override(monkeypatch: pytest.MonkeyPatch) -> None:
 
 def test_emulated_hard_cap() -> None:
     assert _choose(20, 10_000.0, emulated=True) == 4
+
+
+def test_available_ram_respects_cgroup_limit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import pyleman2000.worker_sizing as ws
+
+    monkeypatch.setattr(ws, "_host_available_ram_bytes", lambda: 64 * 1024**3)
+    # cgroup limit far below host RAM (e.g. a small k8s pod).
+    monkeypatch.setattr(
+        ws, "cgroup_available_ram_bytes", lambda: 3 * 1024**3
+    )
+    assert ws.available_ram_bytes() == 3 * 1024**3
+
+
+def test_available_ram_ignores_unset_cgroup(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import pyleman2000.worker_sizing as ws
+
+    monkeypatch.setattr(ws, "_host_available_ram_bytes", lambda: 8 * 1024**3)
+    monkeypatch.setattr(ws, "cgroup_available_ram_bytes", lambda: None)
+    assert ws.available_ram_bytes() == 8 * 1024**3
 
 
 def test_rejects_invalid_workers() -> None:

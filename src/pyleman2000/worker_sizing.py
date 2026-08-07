@@ -48,8 +48,8 @@ DEFAULT_HARD_CAP = 8
 EMULATED_HARD_CAP = 4
 
 
-def available_ram_bytes() -> int | None:
-    """Return available system RAM in bytes, or ``None`` if unknown."""
+def _host_available_ram_bytes() -> int | None:
+    """Return host ``MemAvailable`` in bytes, or ``None`` if unknown."""
     try:
         with open("/proc/meminfo", encoding="utf-8") as handle:
             for line in handle:
@@ -60,6 +60,51 @@ def available_ram_bytes() -> int | None:
     except (OSError, IndexError, ValueError):
         return None
     return None
+
+
+def _read_int_file(path: str) -> int | None:
+    try:
+        with open(path, encoding="utf-8") as handle:
+            return int(handle.read().strip())
+    except (OSError, ValueError):
+        return None
+
+
+def cgroup_available_ram_bytes() -> int | None:
+    """Return RAM the current cgroup may still use, or ``None`` if unlimited.
+
+    Handles cgroup v2 (``memory.max`` / ``memory.current``) and v1
+    (``memory.limit_in_bytes`` / ``memory.usage_in_bytes``). A limit at or
+    above host RAM is treated as unlimited so it never falsely lowers the
+    budget.
+    """
+    host = _host_available_ram_bytes()
+    # cgroup v2
+    limit = _read_int_file("/sys/fs/cgroup/memory.max")
+    usage = _read_int_file("/sys/fs/cgroup/memory.current")
+    if limit is None:
+        # cgroup v1
+        limit = _read_int_file("/sys/fs/cgroup/memory/memory.limit_in_bytes")
+        usage = _read_int_file("/sys/fs/cgroup/memory/memory.usage_in_bytes")
+    if limit is None or limit <= 0:
+        return None
+    if host is not None and limit >= host:
+        return None
+    return max(0, limit - (usage or 0))
+
+
+def available_ram_bytes() -> int | None:
+    """Return RAM available to this process in bytes, or ``None`` if unknown.
+
+    Takes the smaller of host ``MemAvailable`` and the current cgroup's
+    remaining allowance, so container/pod memory limits are respected.
+    """
+    host = _host_available_ram_bytes()
+    cgroup = cgroup_available_ram_bytes()
+    candidates = [v for v in (host, cgroup) if v is not None]
+    if not candidates:
+        return None
+    return min(candidates)
 
 
 def is_likely_emulated_amd64(machine: str | None = None) -> bool:
@@ -177,7 +222,10 @@ def choose_worker_count(
         Duration of the longest file, used to size the per-worker RAM
         budget. When omitted, files are assumed to be evenly sized.
     workers :
-        Explicit override. When set, still capped by ``n_files``.
+        Explicit override (from the argument or ``PYLEMAN2000_WORKERS``).
+        Honoured as given, capped only by ``n_files``; the automatic
+        RAM/CPU/hard caps are skipped, so an explicit count can oversubscribe
+        memory. Leave unset for the safe automatic choice.
     backend :
         ``"matlab"`` or ``"octave"``; selects the per-worker RAM budget.
     available_ram :
@@ -226,7 +274,10 @@ def choose_worker_count(
     if workers is not None:
         if not isinstance(workers, int) or isinstance(workers, bool) or workers < 1:
             raise ValueError("workers must be an integer >= 1")
-        return min(workers, n_files, hard_cap)
+        # An explicit request (argument or PYLEMAN2000_WORKERS) is honoured as
+        # given, capped only by the number of files. Automatic RAM/CPU/hard
+        # caps apply only when the count is chosen for the caller.
+        return min(workers, n_files)
 
     if total_audio_sec is None or total_audio_sec <= 0:
         desired = 1

@@ -93,6 +93,39 @@ def test_leman2000_batch_empty() -> None:
     assert batch.results == ()
 
 
+def test_leman2000_batch_rejects_bare_string_path() -> None:
+    with pytest.raises(TypeError, match="sequence of paths"):
+        leman2000_batch("only_one.wav", 0.1, 1.0, show_progress=False)
+
+
+def test_leman2000_batch_reports_partial_progress_on_failure(
+    raw_result: dict, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    wavs = _make_wavs(tmp_path, 4)
+    runner = MagicMock()
+
+    def run(*, input_file, **_kwargs):
+        if Path(input_file).name.endswith("2.wav"):
+            raise RuntimeError("kaboom")
+        return raw_result
+
+    runner.run.side_effect = run
+    stream = io.StringIO()
+    monkeypatch.setattr(
+        "pyleman2000.api.BatchProgress",
+        lambda *a, **k: BatchProgress(stream, step_files=1),
+    )
+
+    with patch("pyleman2000.api.MatlabWorkerRunner", return_value=runner):
+        with patch("pyleman2000.api.choose_worker_count", return_value=2):
+            with pytest.raises(RuntimeError, match="kaboom"):
+                leman2000_batch(wavs, 0.1, 1.0, workers=2, show_progress=True)
+
+    # One close per pooled session (both share this mock at workers=2).
+    assert runner.close.call_count == 2
+    assert "4/4 files" not in stream.getvalue()
+
+
 def test_leman2000_batch_uses_pool_and_combines(
     raw_result: dict, tmp_path: Path
 ) -> None:

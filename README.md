@@ -105,6 +105,8 @@ batch.local_global_comparison.head()
 Extra workers only pay off once each has enough audio to offset the ~5 s
 worker startup, so short files stay sequential by default. See
 `artifacts/benchmark/batch_scaling.md` for the measurements behind this.
+Passing `workers=` (or `PYLEMAN2000_WORKERS`) overrides the automatic choice
+and is honoured as given, so it can exceed what memory comfortably allows.
 
 ## Octave backend
 

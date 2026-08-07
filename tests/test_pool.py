@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import io
 import json
 import threading
 import time
@@ -16,6 +17,7 @@ from pyleman2000 import (
     Leman2000Result,
     example_wav_path,
 )
+from pyleman2000.progress import BatchProgress
 
 FIXTURE = Path(__file__).parent / "fixtures" / "sample_result.json"
 
@@ -38,6 +40,63 @@ def _make_wavs(tmp_path: Path, n: int) -> list[Path]:
 def test_pool_rejects_non_positive_workers() -> None:
     with pytest.raises(ValueError, match="workers"):
         Leman2000Pool(workers=0)
+
+
+def test_pool_defaults_to_single_worker(raw_result: dict, tmp_path: Path) -> None:
+    wavs = _make_wavs(tmp_path, 3)
+    runners: list[MagicMock] = []
+
+    def make_runner(**kwargs):
+        runner = MagicMock()
+        runner.run.return_value = raw_result
+        runners.append(runner)
+        return runner
+
+    with patch("pyleman2000.api.MatlabWorkerRunner", side_effect=make_runner):
+        with Leman2000Pool(show_progress=False) as pool:
+            pool.map(wavs, 0.1, 1.0)
+
+    assert len(runners) == 1
+
+
+def test_pool_map_rejects_bare_string_path() -> None:
+    with patch("pyleman2000.api.MatlabWorkerRunner"):
+        with Leman2000Pool(workers=1, show_progress=False) as pool:
+            with pytest.raises(TypeError, match="sequence of paths"):
+                pool.map("only_one.wav", 0.1, 1.0)
+
+
+def test_pool_map_failure_cleans_up_and_reports_partial_progress(
+    raw_result: dict, tmp_path: Path
+) -> None:
+    wavs = _make_wavs(tmp_path, 4)
+    runners: list[MagicMock] = []
+
+    def make_runner(**kwargs):
+        runner = MagicMock()
+
+        def run(*, input_file, **_kwargs):
+            if Path(input_file).name.endswith("2.wav"):
+                raise RuntimeError("worker blew up")
+            return raw_result
+
+        runner.run.side_effect = run
+        runners.append(runner)
+        return runner
+
+    stream = io.StringIO()
+    progress = BatchProgress(stream, step_files=1)
+
+    with patch("pyleman2000.api.MatlabWorkerRunner", side_effect=make_runner):
+        with Leman2000Pool(workers=2, show_progress=False) as pool:
+            with pytest.raises(RuntimeError, match="worker blew up"):
+                pool.map(wavs, 0.1, 1.0, progress=progress)
+
+    # Every started session is returned/closed even though a job failed.
+    for runner in runners:
+        runner.close.assert_called_once_with()
+    # The progress line must not claim all files finished.
+    assert "4/4 files" not in stream.getvalue()
 
 
 def test_pool_map_empty_returns_empty() -> None:
