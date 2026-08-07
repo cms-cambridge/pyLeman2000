@@ -38,9 +38,12 @@ from pyleman2000.docker_runner import (
 from pyleman2000.progress import RunProgress
 
 # Published MATLAB worker (built on a Compiler host via
-# ./scripts/build_matlab_image.sh --push). Until the first push, builds are
-# local-only as pyleman2000-matlab:dev.
-DEFAULT_MATLAB_IMAGE = "ghcr.io/cms-cambridge/pyleman2000-matlab:dev"
+# ./scripts/build_matlab_image.sh --push). Branch/dev builds use :dev; releases
+# also tag :0.1.0 (+ :latest). The package default is pinned to a digest.
+DEFAULT_MATLAB_IMAGE = (
+    "ghcr.io/cms-cambridge/pyleman2000-matlab"
+    "@sha256:3efee1cb706a3b7239c0d852e49ab2b0af5d837c72af53a0e3a4bb88fdbf9782"
+)
 LOCAL_MATLAB_DEV_IMAGE = "pyleman2000-matlab:dev"
 CONTAINER_WORK_DIR = "/work"
 CONTAINER_DATA_DIR = "/data"

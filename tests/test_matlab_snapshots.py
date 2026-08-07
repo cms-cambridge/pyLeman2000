@@ -1,7 +1,7 @@
 """Smoke tests: compiled MATLAB backend vs archived R snapshots.
 
-These require the published MATLAB Runtime worker image
-(``ghcr.io/cms-cambridge/pyleman2000-matlab:dev`` or a local retag). They are
+These require the published MATLAB Runtime worker image (digest-pinned as
+``DEFAULT_MATLAB_IMAGE``, also tagged ``:0.1.0`` / ``:dev``). They are
 intentionally separate from the Octave ``integration`` marker so CI can pull
 the MATLAB image without rebuilding it (MathWorks Compiler is not available
 on GitHub-hosted runners).

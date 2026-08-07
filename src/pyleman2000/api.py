@@ -221,9 +221,9 @@ def leman2000(
     backend :
         ``"octave"`` (default) or ``"matlab"``.
     docker_image :
-        Docker image providing the model. Defaults to the Octave GHCR image
-        or ``pyleman2000-matlab:dev`` / ``ghcr.io/cms-cambridge/pyleman2000-matlab:dev``
-        for the MATLAB backend (see ``./scripts/build_matlab_image.sh``).
+        Docker image providing the model. Defaults to digest-pinned GHCR
+        images (``DEFAULT_IMAGE`` / ``DEFAULT_MATLAB_IMAGE``). For local
+        builds, pass ``pyleman2000-octave:dev`` or ``pyleman2000-matlab:dev``.
     docker_client :
         Optional Docker SDK client. Useful for testing.
     docker_timeout_sec :

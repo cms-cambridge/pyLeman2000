@@ -13,6 +13,7 @@ not “anyone can `docker build` from scratch on GitHub-hosted runners.”
 | MATLAB sources | `docker/matlab/*.m` |
 | Runtime product set | `buildresult.json` produced by `mcc` (copied to `build/matlab/` on each build) |
 | Image name | `ghcr.io/cms-cambridge/pyleman2000-matlab:<tag>` |
+| Package default | Digest pin in `DEFAULT_MATLAB_IMAGE` (0.1.0 release) |
 
 Current IPEM pin: `da1ca9d51d0096b3621a3ef8424622e30c32d9f6` (master after #3).
 

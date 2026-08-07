@@ -72,10 +72,11 @@ Local `pyleman2000-octave:*` tags are never pulled from a registry; if missing
 you get an error pointing at the build script.
 
 Publishing to GHCR is handled by `.github/workflows/docker-publish.yml`
-(`linux/amd64`). Pushes to this branch publish
-`ghcr.io/cms-cambridge/pyleman2000-octave:dev` (also the package default until
-a versioned release); version tags / manual dispatch publish `:0.1.0` (and
-`:latest`).
+(`linux/amd64`). Pushes to `main` refresh
+`ghcr.io/cms-cambridge/pyleman2000-octave:dev`; manual workflow dispatch
+publishes version tags such as `:0.1.0` (and `:latest`). The package default
+is a digest pin of the 0.1.0 image (`DEFAULT_IMAGE`), so installs stay
+reproducible while `:dev` keeps moving.
 
 ## Choosing parameters
 
@@ -146,10 +147,9 @@ typically faster (filesystem caches stay warm), especially on Apple Silicon.
 
 ### Optional compiled MATLAB backend
 
-When a MATLAB Compiler host has published
-`ghcr.io/cms-cambridge/pyleman2000-matlab:dev` (or you have built
-`pyleman2000-matlab:dev` locally), pass `backend="matlab"` to keep a compiled
-MATLAB Runtime worker alive across runs:
+Pass `backend="matlab"` to keep a compiled MATLAB Runtime worker alive across
+runs. The package default (`DEFAULT_MATLAB_IMAGE`) is a digest pin of the
+published 0.1.0 worker; override with `docker_image=` for a local `:dev` build:
 
 ```python
 with Leman2000Session(backend="matlab") as session:
@@ -164,8 +164,8 @@ The default remains `backend="octave"`. Build and publish the MATLAB image on
 a Linux host with MATLAB Compiler:
 
 ```bash
-./scripts/build_matlab_image.sh           # local pyleman2000-matlab:dev
-./scripts/build_matlab_image.sh --push    # also push to GHCR
+./scripts/build_matlab_image.sh                 # local pyleman2000-matlab:dev
+./scripts/build_matlab_image.sh --tag 0.1.0 --push
 ```
 
 See `docker/matlab/README.md` for pins, provenance, and the worker protocol.

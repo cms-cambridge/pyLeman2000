@@ -10,7 +10,13 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from pyleman2000 import Leman2000Result, Leman2000Session, example_wav_path, leman2000
+from pyleman2000 import (
+    DEFAULT_MATLAB_IMAGE,
+    Leman2000Result,
+    Leman2000Session,
+    example_wav_path,
+    leman2000,
+)
 
 FIXTURE = Path(__file__).parent / "fixtures" / "sample_result.json"
 
@@ -297,9 +303,7 @@ def test_leman2000_matlab_backend_dispatches_to_matlab_runner(
     assert isinstance(result, Leman2000Result)
     run_matlab.assert_called_once()
     run_octave.assert_not_called()
-    assert run_matlab.call_args.kwargs["image"] == (
-        "ghcr.io/cms-cambridge/pyleman2000-matlab:dev"
-    )
+    assert run_matlab.call_args.kwargs["image"] == DEFAULT_MATLAB_IMAGE
 
 
 def test_session_matlab_backend_uses_matlab_worker(
@@ -317,9 +321,7 @@ def test_session_matlab_backend_uses_matlab_worker(
 
     octave_ctor.assert_not_called()
     ctor.assert_called_once()
-    assert ctor.call_args.kwargs["image"] == (
-        "ghcr.io/cms-cambridge/pyleman2000-matlab:dev"
-    )
+    assert ctor.call_args.kwargs["image"] == DEFAULT_MATLAB_IMAGE
     runner.open.assert_called_once_with()
     runner.close.assert_called_once_with()
 
