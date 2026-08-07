@@ -42,7 +42,13 @@ not share by default (such as WAV files inside `site-packages`).
 ## Installation
 
 ```bash
-python3 -m pip install git+https://github.com/cms-cambridge/pyLeman2000.git
+python3 -m pip install pyLeman2000
+```
+
+From a specific Git tag (or before the PyPI upload lands):
+
+```bash
+python3 -m pip install git+https://github.com/cms-cambridge/pyLeman2000.git@v0.1.0
 ```
 
 For local development:
