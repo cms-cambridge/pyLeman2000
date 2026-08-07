@@ -24,6 +24,9 @@ Current IPEM pin: `da1ca9d51d0096b3621a3ef8424622e30c32d9f6` (master after #3).
 
 Apple Silicon / macOS cannot produce the linux/amd64 Runtime image in-tree; use a Linux host (e.g. musix).
 
+If the host does not have MATLAB yet (remote desktop, installer, Compiler
+quirks), see [HOST_SETUP.md](HOST_SETUP.md).
+
 ## One command
 
 ```bash

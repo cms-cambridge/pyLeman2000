@@ -3,7 +3,7 @@
 
 Measures a cold ``docker run`` per analysis and a warm ``docker exec`` into a
 long-lived container, which is what ``Leman2000Session`` does. Run on the same
-machine as ``drive_worker.py`` so the two sets of numbers are comparable.
+machine as ``drive_matlab_worker.py`` so the two sets of numbers are comparable.
 """
 
 from __future__ import annotations
