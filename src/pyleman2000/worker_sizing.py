@@ -12,7 +12,9 @@ BackendName = Literal["octave", "matlab"]
 WORKERS_ENV = "PYLEMAN2000_WORKERS"
 # Conservative RSS budgets for a warm container plus headroom for the host.
 MATLAB_RAM_PER_WORKER_BYTES = 5 * 1024**3
-OCTAVE_RAM_PER_WORKER_BYTES = 2 * 1024**3
+# Octave's on-disk image is ~4.4 GiB; a loaded IPEM run can approach that, so
+# keep the per-worker RSS budget in the same ballpark.
+OCTAVE_RAM_PER_WORKER_BYTES = 4 * 1024**3
 # On-disk image size gates (distinct from RSS). Packaging spike measured
 # ~3.8 GiB for the MATLAB worker and ~4.4 GiB for Octave; CI fails if the
 # published images balloon past these ceilings.
@@ -20,6 +22,10 @@ MATLAB_IMAGE_SIZE_MIN_BYTES = 2 * 1024**3
 MATLAB_IMAGE_SIZE_MAX_BYTES = 5 * 1024**3
 OCTAVE_IMAGE_SIZE_MIN_BYTES = 2 * 1024**3
 OCTAVE_IMAGE_SIZE_MAX_BYTES = 6 * 1024**3
+# Warm-container working-set floors: loaded Runtime / Octave should be well
+# above an empty shell, and at or below the per-worker RSS budgets above.
+MATLAB_WARM_RSS_MIN_BYTES = 512 * 1024**2
+OCTAVE_WARM_RSS_MIN_BYTES = 64 * 1024**2
 DEFAULT_HARD_CAP = 8
 EMULATED_HARD_CAP = 4
 FALLBACK_WORKERS = 4

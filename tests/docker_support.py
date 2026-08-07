@@ -76,3 +76,40 @@ def docker_image_size_bytes(image: str) -> int:
         return image_size_bytes(client.images.get(image).attrs)
     finally:
         client.close()
+
+
+def container_memory_usage_bytes(stats: dict[str, Any]) -> int:
+    """Return approximate working-set memory from a Docker stats payload.
+
+    Prefers usage minus reclaimable file cache when those fields exist
+    (cgroup v1 ``cache`` or cgroup v2 ``inactive_file``), otherwise falls
+    back to raw ``memory_stats.usage``.
+
+    Parameters
+    ----------
+    stats :
+        One decoded object from ``container.stats(stream=False)``.
+
+    Returns
+    -------
+    int
+        Estimated bytes of memory in active use.
+    """
+    memory = stats.get("memory_stats")
+    if not isinstance(memory, dict):
+        raise TypeError("stats['memory_stats'] must be a mapping")
+    usage = int(memory["usage"])
+    if usage < 0:
+        raise ValueError(f"memory usage must be non-negative, got {usage}")
+
+    detail = memory.get("stats")
+    cache = 0
+    if isinstance(detail, dict):
+        for key in ("inactive_file", "cache"):
+            if key in detail:
+                try:
+                    cache = max(0, int(detail[key]))
+                    break
+                except (TypeError, ValueError):
+                    cache = 0
+    return max(0, usage - cache)
