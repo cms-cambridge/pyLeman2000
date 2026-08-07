@@ -33,7 +33,7 @@ pytestmark = [
 
 @pytest.fixture(scope="module")
 def matlab_result():
-    with Leman2000Session(backend="matlab", show_progress=False) as session:
+    with Leman2000Session(show_progress=False) as session:
         return session.run(
             input_file=example_wav_path(),
             local_decay_sec=LOCAL_DECAY,

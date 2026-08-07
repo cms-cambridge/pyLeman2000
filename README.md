@@ -5,15 +5,17 @@ Python wrapper for Leman's (2000) tonal contextuality model.
 The original model was published in a 2000 *Music Perception* paper, and was
 shown to provide a psychoacoustic account of the Krumhansl-Kessler probe-tone
 data (Leman, 2000). Leman and colleagues released this model as part of the
-IPEM Toolbox, which now only runs on old MATLAB versions. This package runs a
-license-free GNU Octave port of the model in Docker (via the
-[Docker SDK for Python](https://docker-py.readthedocs.io/)) for cross-platform
-use.
+IPEM Toolbox, which now only runs on old MATLAB versions. This package runs
+the model in Docker (via the
+[Docker SDK for Python](https://docker-py.readthedocs.io/)): by default a
+compiled MATLAB Runtime worker, with an optional license-free GNU Octave
+backend.
 
 The default image is
-[`ghcr.io/cms-cambridge/pyleman2000-octave`](https://github.com/cms-cambridge/pyLeman2000/pkgs/container/pyleman2000-octave)
-(`linux/amd64`), built from `docker/octave/` against a pinned
-[cms-cambridge/IPEMToolbox](https://github.com/cms-cambridge/IPEMToolbox)
+[`ghcr.io/cms-cambridge/pyleman2000-matlab`](https://github.com/cms-cambridge/pyLeman2000/pkgs/container/pyleman2000-matlab)
+(`linux/amd64`), digest-pinned as `DEFAULT_MATLAB_IMAGE`. Pass
+`backend="octave"` for the Octave image built from `docker/octave/` against a
+pinned [cms-cambridge/IPEMToolbox](https://github.com/cms-cambridge/IPEMToolbox)
 commit. On 44.1 kHz input, running correlations typically agree with the
 archived MATLAB/R snapshots to about `3e-6` (not bit-identical). Feed
 22.05 kHz audio if you need closer cross-implementation agreement.
@@ -48,7 +50,7 @@ python3 -m pip install pyLeman2000
 From a specific Git tag (or before the PyPI upload lands):
 
 ```bash
-python3 -m pip install git+https://github.com/cms-cambridge/pyLeman2000.git@v0.1.0
+python3 -m pip install git+https://github.com/cms-cambridge/pyLeman2000.git@v0.2.0
 ```
 
 For local development:
@@ -57,32 +59,37 @@ For local development:
 python3 -m pip install -e ".[dev]"
 ```
 
-Optional: pre-pull the default image (otherwise the package pulls it on first
-`leman2000(...)` call):
+Optional: pre-pull the default MATLAB image (otherwise the package pulls it on
+first `leman2000(...)` call):
 
 ```bash
-docker pull "$(python3 -c 'from pyleman2000 import DEFAULT_IMAGE; print(DEFAULT_IMAGE)')"
+docker pull "$(python3 -c 'from pyleman2000 import DEFAULT_MATLAB_IMAGE; print(DEFAULT_MATLAB_IMAGE)')"
 ```
 
-### Building the image locally
+### Building images locally
 
-Contributors can build from this repository (pins IPEM at the commit in
-`docker/octave/Dockerfile`):
+Octave (optional backend):
 
 ```bash
 ./scripts/build_octave_image.sh
+# then: leman2000(..., backend="octave", docker_image="pyleman2000-octave:dev")
 ```
 
-Then pass `docker_image="pyleman2000-octave:dev"` (or another tag) to the API.
-Local `pyleman2000-octave:*` tags are never pulled from a registry; if missing
-you get an error pointing at the build script.
+MATLAB (default backend; needs MATLAB Compiler on Linux amd64):
 
-Publishing to GHCR is handled by `.github/workflows/docker-publish.yml`
-(`linux/amd64`). Pushes to `main` refresh
-`ghcr.io/cms-cambridge/pyleman2000-octave:dev`; manual workflow dispatch
-publishes version tags such as `:0.1.0` (and `:latest`). The package default
-is a digest pin of the 0.1.0 image (`DEFAULT_IMAGE`), so installs stay
-reproducible while `:dev` keeps moving.
+```bash
+./scripts/build_matlab_image.sh                 # local pyleman2000-matlab:dev
+./scripts/build_matlab_image.sh --tag 0.1.0 --push
+```
+
+Local `pyleman2000-octave:*` / `pyleman2000-matlab:*` tags are never pulled
+from a registry; if missing you get an error pointing at the build script.
+
+Octave publishing to GHCR is handled by `.github/workflows/docker-publish.yml`
+(`linux/amd64`). Pushes to `main` refresh `:dev`; manual workflow dispatch
+publishes version tags such as `:0.1.0` (and `:latest`). Package defaults are
+digest pins of the 0.1.0 images, so installs stay reproducible while `:dev`
+keeps moving. See `docker/matlab/README.md` for the MATLAB worker protocol.
 
 ## Choosing parameters
 
@@ -127,10 +134,11 @@ result.audio_length_sec, result.num_channels, result.sample_rate
 (0.3707936508, 1, 44100.0)
 ```
 
-### Repeated analyses (warm container)
+### Repeated analyses (warm worker)
 
 Each one-shot `leman2000(...)` call starts a fresh container. When analysing
-many files, keep one container alive:
+many files, keep one worker alive (default MATLAB backend reuses the compiled
+Runtime process):
 
 ```python
 from pyleman2000 import Leman2000Session, example_wav_path
@@ -148,33 +156,20 @@ with Leman2000Session() as session:
     )
 ```
 
-Octave still starts on every `run`, but later calls in the same session are
-typically faster (filesystem caches stay warm), especially on Apple Silicon.
+### Optional Octave backend
 
-### Optional compiled MATLAB backend
-
-Pass `backend="matlab"` to keep a compiled MATLAB Runtime worker alive across
-runs. The package default (`DEFAULT_MATLAB_IMAGE`) is a digest pin of the
-published 0.1.0 worker; override with `docker_image=` for a local `:dev` build:
+Pass `backend="octave"` for the license-free Octave image
+(`DEFAULT_IMAGE`). Sessions still help on Apple Silicon by warming filesystem
+caches, even though Octave restarts inside the container on each `run`:
 
 ```python
-with Leman2000Session(backend="matlab") as session:
+with Leman2000Session(backend="octave") as session:
     result = session.run(
         input_file=example_wav_path(),
         local_decay_sec=0.1,
         global_decay_sec=1.0,
     )
 ```
-
-The default remains `backend="octave"`. Build and publish the MATLAB image on
-a Linux host with MATLAB Compiler:
-
-```bash
-./scripts/build_matlab_image.sh                 # local pyleman2000-matlab:dev
-./scripts/build_matlab_image.sh --tag 0.1.0 --push
-```
-
-See `docker/matlab/README.md` for pins, provenance, and the worker protocol.
 
 ```python
 result.local_global_comparison.head()

@@ -32,6 +32,7 @@ def python_result():
         local_decay_sec=LOCAL_DECAY,
         global_decay_sec=GLOBAL_DECAY,
         windows=WINDOWS,
+        backend="octave",
         show_progress=False,
     )
 
@@ -43,6 +44,7 @@ def detailed_python_result():
         local_decay_sec=LOCAL_DECAY,
         global_decay_sec=GLOBAL_DECAY,
         keep_auditory_nerve=True,
+        backend="octave",
         show_progress=False,
     )
 
@@ -80,6 +82,7 @@ def test_periodicity_pitch_can_be_requested() -> None:
         local_decay_sec=0.1,
         global_decay_sec=1.0,
         keep_periodicity_pitch=True,
+        backend="octave",
         show_progress=False,
     )
     assert result.periodicity_pitch is not None

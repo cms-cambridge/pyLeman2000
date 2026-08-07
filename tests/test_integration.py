@@ -26,6 +26,7 @@ def test_leman2000_end_to_end() -> None:
             local_decay_sec=[0.1, 0.2],
             global_decay_sec=[1.0, 2.0],
             windows=[(0.0, 0.1), (0.1, 0.2), (0.2, 0.3)],
+            backend="octave",
             show_progress=False,
         )
     except Leman2000DockerError as exc:

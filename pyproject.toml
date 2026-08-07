@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "pyLeman2000"
-version = "0.1.0"
+version = "0.2.0"
 description = "Python wrapper for Leman's (2000) tonal contextuality model"
 readme = "README.md"
 license = "MIT"

@@ -7,9 +7,8 @@ The worker image entrypoint is a long-lived compiled MATLAB process that:
 3. Writes model JSON to the path in the request, then ``res-<id>.json``.
 4. Exits when ``<work_dir>/stop`` appears.
 
-This is the path that reuses MATLAB Runtime state across analyses. The Octave
-backend in :mod:`pyleman2000.docker_runner` stays the default; select this
-backend with ``backend="matlab"``.
+This is the path that reuses MATLAB Runtime state across analyses. Select
+the Octave backend with ``backend="octave"``; MATLAB is the package default.
 """
 
 from __future__ import annotations

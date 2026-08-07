@@ -57,7 +57,7 @@ The script:
 ```python
 from pyleman2000 import Leman2000Session, example_wav_path
 
-with Leman2000Session(backend="matlab") as session:
+with Leman2000Session() as session:
     result = session.run(
         example_wav_path(),
         local_decay_sec=0.1,
@@ -65,9 +65,10 @@ with Leman2000Session(backend="matlab") as session:
     )
 ```
 
-Default backend remains **Octave**. The published MATLAB image is
-smoke-tested in CI (``pytest -m matlab``) against the archived R snapshots.
-Override the image with `docker_image=` if you are testing a local build tag.
+Default backend is **MATLAB** (`DEFAULT_MATLAB_IMAGE`, digest-pinned). The
+published image is smoke-tested in CI (``pytest -m matlab``) against the
+archived R snapshots. Pass `backend="octave"` for the Octave image, or
+override either with `docker_image=` for a local build tag.
 
 Environment variables the worker container expects:
 

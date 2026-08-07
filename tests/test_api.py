@@ -42,6 +42,7 @@ def test_leman2000_with_mocked_runner(raw_result: dict, tmp_path: Path) -> None:
             local_decay_sec=[0.1, 0.2],
             global_decay_sec=[1.0, 2.0],
             windows=[(0.0, 0.1), (0.1, 0.2), (0.2, 0.3)],
+            backend="octave",
         )
 
     assert isinstance(result, Leman2000Result)
@@ -76,6 +77,7 @@ def test_singleton_parameters(raw_result: dict, tmp_path: Path) -> None:
             input_file=wav,
             local_decay_sec=0.1,
             global_decay_sec=1.0,
+            backend="octave",
         )
 
     assert isinstance(result.local_global_comparison, pd.DataFrame)
@@ -95,6 +97,7 @@ def test_keep_flags_request_detail_and_retain_fields(
             global_decay_sec=1.0,
             keep_auditory_nerve=True,
             keep_periodicity_pitch=False,
+            backend="octave",
         )
 
     assert run_model.call_args.kwargs["detail"] == 5
@@ -116,6 +119,7 @@ def test_forwards_docker_options_and_windowing_function(
             global_decay_sec=(1.0,),
             windows=[(0.0, 0.3)],
             windowing_function=np.median,
+            backend="octave",
             docker_image="example/image@sha256:digest",
             docker_client=client,
             docker_timeout_sec=12.0,
@@ -174,7 +178,7 @@ def test_requested_detail_must_be_present(
     raw_result.pop("auditory_nerve")
 
     with (
-        patch("pyleman2000.api.run_model", return_value=raw_result),
+        patch("pyleman2000.api.run_model_matlab", return_value=raw_result),
         pytest.raises(ValueError, match="auditory_nerve"),
     ):
         leman2000(
@@ -191,6 +195,7 @@ def test_invalid_windows_are_rejected_before_docker(tmp_path: Path) -> None:
 
     with (
         patch("pyleman2000.api.run_model") as run_model,
+        patch("pyleman2000.api.run_model_matlab") as run_matlab,
         pytest.raises(ValueError, match="greater than or equal"),
     ):
         leman2000(
@@ -201,6 +206,7 @@ def test_invalid_windows_are_rejected_before_docker(tmp_path: Path) -> None:
         )
 
     run_model.assert_not_called()
+    run_matlab.assert_not_called()
 
 
 def test_empty_windows_are_rejected_before_docker(tmp_path: Path) -> None:
@@ -209,6 +215,7 @@ def test_empty_windows_are_rejected_before_docker(tmp_path: Path) -> None:
 
     with (
         patch("pyleman2000.api.run_model") as run_model,
+        patch("pyleman2000.api.run_model_matlab") as run_matlab,
         pytest.raises(ValueError, match="at least one"),
     ):
         leman2000(
@@ -219,6 +226,7 @@ def test_empty_windows_are_rejected_before_docker(tmp_path: Path) -> None:
         )
 
     run_model.assert_not_called()
+    run_matlab.assert_not_called()
 
 
 def test_rejects_non_callable_windowing_function(tmp_path: Path) -> None:
@@ -227,6 +235,7 @@ def test_rejects_non_callable_windowing_function(tmp_path: Path) -> None:
 
     with (
         patch("pyleman2000.api.run_model") as run_model,
+        patch("pyleman2000.api.run_model_matlab") as run_matlab,
         pytest.raises(TypeError, match="windowing_function"),
     ):
         leman2000(
@@ -238,6 +247,7 @@ def test_rejects_non_callable_windowing_function(tmp_path: Path) -> None:
         )
 
     run_model.assert_not_called()
+    run_matlab.assert_not_called()
 
 
 def test_rejects_non_wav(tmp_path: Path) -> None:
@@ -259,7 +269,7 @@ def test_session_reuses_warm_runner(raw_result: dict, tmp_path: Path) -> None:
     runner.run.return_value = raw_result
 
     with patch("pyleman2000.api.WarmModelRunner", return_value=runner):
-        with Leman2000Session(show_progress=False) as session:
+        with Leman2000Session(backend="octave", show_progress=False) as session:
             first = session.run(
                 input_file=wav,
                 local_decay_sec=0.1,
@@ -282,7 +292,7 @@ def test_session_reuses_warm_runner(raw_result: dict, tmp_path: Path) -> None:
     runner.close.assert_called_once_with()
 
 
-def test_leman2000_matlab_backend_dispatches_to_matlab_runner(
+def test_leman2000_default_backend_is_matlab(
     raw_result: dict, tmp_path: Path
 ) -> None:
     wav = tmp_path / "tone.wav"
@@ -296,7 +306,6 @@ def test_leman2000_matlab_backend_dispatches_to_matlab_runner(
                 input_file=wav,
                 local_decay_sec=0.1,
                 global_decay_sec=1.0,
-                backend="matlab",
                 show_progress=False,
             )
 
@@ -306,7 +315,27 @@ def test_leman2000_matlab_backend_dispatches_to_matlab_runner(
     assert run_matlab.call_args.kwargs["image"] == DEFAULT_MATLAB_IMAGE
 
 
-def test_session_matlab_backend_uses_matlab_worker(
+def test_leman2000_octave_backend_dispatches_to_octave_runner(
+    raw_result: dict, tmp_path: Path
+) -> None:
+    wav = tmp_path / "tone.wav"
+    wav.write_bytes(example_wav_path().read_bytes())
+
+    with patch("pyleman2000.api.run_model", return_value=raw_result) as run_octave:
+        with patch("pyleman2000.api.run_model_matlab") as run_matlab:
+            leman2000(
+                input_file=wav,
+                local_decay_sec=0.1,
+                global_decay_sec=1.0,
+                backend="octave",
+                show_progress=False,
+            )
+
+    run_octave.assert_called_once()
+    run_matlab.assert_not_called()
+
+
+def test_session_default_backend_uses_matlab_worker(
     raw_result: dict, tmp_path: Path
 ) -> None:
     wav = tmp_path / "tone.wav"
@@ -316,7 +345,7 @@ def test_session_matlab_backend_uses_matlab_worker(
 
     with patch("pyleman2000.api.MatlabWorkerRunner", return_value=runner) as ctor:
         with patch("pyleman2000.api.WarmModelRunner") as octave_ctor:
-            with Leman2000Session(backend="matlab", show_progress=False) as session:
+            with Leman2000Session(show_progress=False) as session:
                 session.run(wav, local_decay_sec=0.1, global_decay_sec=1.0)
 
     octave_ctor.assert_not_called()

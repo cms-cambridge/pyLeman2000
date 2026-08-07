@@ -174,7 +174,7 @@ def leman2000(
     keep_auditory_nerve: bool = False,
     keep_periodicity_pitch: bool = False,
     *,
-    backend: BackendName = "octave",
+    backend: BackendName = "matlab",
     docker_image: str | None = None,
     docker_client: docker.DockerClient | None = None,
     docker_timeout_sec: float | None = DEFAULT_TIMEOUT_SEC,
@@ -184,16 +184,15 @@ def leman2000(
 
     This model was published in a 2000 Music Perception paper, and was shown
     to provide a psychoacoustic account of the Krumhansl-Kessler probe-tone
-    data. Computation runs in Docker. The default ``backend="octave"`` uses a
-    license-free GNU Octave image published to GHCR (``linux/amd64``; see
-    ``docker/octave/``). ``backend="matlab"`` uses a compiled MATLAB Runtime
-    worker (see ``docker/matlab/``); pull ``DEFAULT_MATLAB_IMAGE`` from GHCR
-    or build with ``./scripts/build_matlab_image.sh``.
+    data. Computation runs in Docker. The default ``backend="matlab"`` uses a
+    compiled MATLAB Runtime worker published to GHCR (see ``docker/matlab/``).
+    ``backend="octave"`` uses a license-free GNU Octave image
+    (``linux/amd64``; see ``docker/octave/``).
 
     For repeated analyses in one process, prefer :class:`Leman2000Session`,
-    which reuses a warm container. With the MATLAB backend the session keeps
-    the compiled worker process alive, which is where most of the speed gain
-    comes from.
+    which reuses a warm container / worker. With the MATLAB backend the
+    session keeps the compiled worker process alive, which is where most of
+    the speed gain comes from.
 
     Parameters
     ----------
@@ -219,11 +218,11 @@ def leman2000(
         If True, include periodicity pitch outputs. These can be large
         nested dictionaries from the model.
     backend :
-        ``"octave"`` (default) or ``"matlab"``.
+        ``"matlab"`` (default) or ``"octave"``.
     docker_image :
         Docker image providing the model. Defaults to digest-pinned GHCR
-        images (``DEFAULT_IMAGE`` / ``DEFAULT_MATLAB_IMAGE``). For local
-        builds, pass ``pyleman2000-octave:dev`` or ``pyleman2000-matlab:dev``.
+        images (``DEFAULT_MATLAB_IMAGE`` / ``DEFAULT_IMAGE``). For local
+        builds, pass ``pyleman2000-matlab:dev`` or ``pyleman2000-octave:dev``.
     docker_client :
         Optional Docker SDK client. Useful for testing.
     docker_timeout_sec :
@@ -272,10 +271,10 @@ def leman2000(
 class Leman2000Session:
     """Reuse one Docker container across multiple model runs.
 
-    With ``backend="octave"`` (default), Octave still starts on every
-    analysis, but keeping the container alive warms filesystem caches. With
-    ``backend="matlab"``, the compiled MATLAB Runtime worker stays loaded,
-    which is typically much faster for repeated analyses.
+    With ``backend="matlab"`` (default), the compiled MATLAB Runtime worker
+    stays loaded, which is typically much faster for repeated analyses. With
+    ``backend="octave"``, Octave still starts on every analysis, but keeping
+    the container alive warms filesystem caches.
 
     Examples
     --------
@@ -290,7 +289,7 @@ class Leman2000Session:
     def __init__(
         self,
         *,
-        backend: BackendName = "octave",
+        backend: BackendName = "matlab",
         docker_image: str | None = None,
         docker_client: docker.DockerClient | None = None,
         docker_timeout_sec: float | None = DEFAULT_TIMEOUT_SEC,
