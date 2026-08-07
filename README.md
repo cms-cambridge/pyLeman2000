@@ -81,26 +81,7 @@ included here.
 
 ## Analysing many files
 
-Each one-shot `leman2000(...)` starts a fresh container. For repeated work in
-one process, keep a warm worker:
-
-```python
-from pyleman2000 import Leman2000Session, example_wav_path
-
-with Leman2000Session() as session:
-    first = session.run(
-        input_file=example_wav_path(),
-        local_decay_sec=0.1,
-        global_decay_sec=1.0,
-    )
-    second = session.run(
-        input_file=example_wav_path(),
-        local_decay_sec=[0.1, 0.5],
-        global_decay_sec=[1.0, 2.0],
-    )
-```
-
-For many files, prefer `leman2000_batch`: it opens a worker pool, picks a
+For many files, use `leman2000_batch`: it opens a worker pool, picks a
 RAM-aware worker count (override with `workers=` or `PYLEMAN2000_WORKERS`),
 shows progress, and returns stacked DataFrames:
 
@@ -119,21 +100,21 @@ batch.local_global_comparison.head()
 ```
 
 `batch.results` still holds per-file `Leman2000Result` objects when you need
-`keep_*` payloads. For finer control, use `Leman2000Pool` directly.
+`keep_*` payloads.
 
 ## Octave backend
 
 Pass `backend="octave"` for the license-free image:
 
 ```python
-from pyleman2000 import Leman2000Session, example_wav_path
+from pyleman2000 import example_wav_path, leman2000
 
-with Leman2000Session(backend="octave") as session:
-    result = session.run(
-        input_file=example_wav_path(),
-        local_decay_sec=0.1,
-        global_decay_sec=1.0,
-    )
+result = leman2000(
+    input_file=example_wav_path(),
+    local_decay_sec=0.1,
+    global_decay_sec=1.0,
+    backend="octave",
+)
 ```
 
 ## Developer notes
