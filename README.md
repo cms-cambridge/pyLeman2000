@@ -156,11 +156,30 @@ with Leman2000Session() as session:
     )
 ```
 
-### Many files (worker pool)
+### Many files (batch helper)
 
-Each ``Leman2000Session`` handles one analysis at a time. For many files,
-use ``Leman2000Pool`` to keep several warm workers and map paths across them
-(threads wait on Docker; results stay in input order):
+For many files, prefer ``leman2000_batch``: it opens a warm worker pool,
+picks a RAM-aware worker count (override with ``workers=`` or
+``PYLEMAN2000_WORKERS``), shows batch progress, and returns stacked
+DataFrames:
+
+```python
+from pyleman2000 import example_wav_path, leman2000_batch
+
+paths = [example_wav_path(), example_wav_path()]
+batch = leman2000_batch(
+    paths,
+    local_decay_sec=0.1,
+    global_decay_sec=1.0,
+)
+
+batch.files
+batch.local_global_comparison.head()
+```
+
+``batch.results`` still holds the per-file ``Leman2000Result`` objects when
+you need ``keep_*`` payloads. For finer control (reusing workers across
+several batches), use ``Leman2000Pool`` directly:
 
 ```python
 from pyleman2000 import Leman2000Pool, example_wav_path
@@ -174,9 +193,8 @@ with Leman2000Pool(workers=2, show_progress=False) as pool:
     )
 ```
 
-Size ``workers`` with machine RAM in mind: each MATLAB Runtime container is
-multi-gigabyte. On Apple Silicon under amd64 emulation, fewer workers often
-perform better.
+Each MATLAB Runtime container is multi-gigabyte; on Apple Silicon under
+amd64 emulation the auto-sizer caps workers more tightly.
 
 ### Optional Octave backend
 

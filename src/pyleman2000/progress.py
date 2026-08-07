@@ -304,3 +304,120 @@ class RunProgress:
                 self._last_elapsed_reported = elapsed_sec
             out.write(f"{text}\n")
         out.flush()
+
+
+class BatchProgress:
+    """Render multi-file batch progress as a status display.
+
+    Interactive terminals rewrite a single line; non-TTY destinations get a
+    new line every ``step_files`` completions (and on start).
+
+    Parameters
+    ----------
+    stream :
+        Destination for progress output. Defaults to :data:`sys.stderr`,
+        looked up at write time.
+    min_interval_sec :
+        Smallest delay between redraws on an interactive terminal.
+    step_files :
+        Completed-file increase that triggers a new line when the destination
+        is not an interactive terminal.
+    """
+
+    def __init__(
+        self,
+        stream: TextIO | None = None,
+        *,
+        min_interval_sec: float = 0.2,
+        step_files: int = 1,
+    ) -> None:
+        self._stream = stream
+        self._min_interval_sec = min_interval_sec
+        self._step_files = max(1, int(step_files))
+        self._last_draw_sec = 0.0
+        self._last_completed_reported: int | None = None
+        self._line_length = 0
+        self._n_files = 0
+        self._n_workers = 0
+        self._completed = 0
+        self._closed = False
+
+    def start(self, n_files: int, n_workers: int) -> None:
+        """Report that a batch is starting.
+
+        Parameters
+        ----------
+        n_files :
+            Total number of files in the batch.
+        n_workers :
+            Number of warm workers that will run analyses.
+        """
+        self._n_files = max(0, int(n_files))
+        self._n_workers = max(0, int(n_workers))
+        self._completed = 0
+        self._draw(force=True)
+
+    def update(self, completed: int) -> None:
+        """Report how many files have finished.
+
+        Parameters
+        ----------
+        completed :
+            Number of completed files so far.
+        """
+        self._completed = max(0, min(int(completed), self._n_files))
+        self._draw()
+
+    def close(self) -> None:
+        """Finish the display, leaving the cursor on a fresh line."""
+        if self._closed:
+            return
+        self._closed = True
+        out = self._stream if self._stream is not None else sys.stderr
+        if out is None:
+            return
+        if self._n_files > 0 and self._completed < self._n_files:
+            self._completed = self._n_files
+            self._closed = False
+            self._draw(force=True)
+            self._closed = True
+        if getattr(out, "isatty", lambda: False)() and self._line_length > 0:
+            out.write("\n")
+            out.flush()
+            self._line_length = 0
+
+    def __enter__(self) -> BatchProgress:
+        return self
+
+    def __exit__(self, *exc_info: object) -> None:
+        self.close()
+
+    def _text(self) -> str:
+        return (
+            f"Leman (2000) batch: {self._completed}/{self._n_files} files "
+            f"({self._n_workers} workers)"
+        )
+
+    def _draw(self, *, force: bool = False) -> None:
+        out = self._stream if self._stream is not None else sys.stderr
+        if out is None or self._closed:
+            return
+
+        text = self._text()
+        if getattr(out, "isatty", lambda: False)():
+            now = time.monotonic()
+            if not force and now - self._last_draw_sec < self._min_interval_sec:
+                return
+            self._last_draw_sec = now
+            text = text[: max(20, shutil.get_terminal_size().columns - 1)]
+            padding = max(0, self._line_length - len(text))
+            self._line_length = len(text)
+            out.write(f"\r{text}{' ' * padding}")
+        else:
+            if not force:
+                last = self._last_completed_reported
+                if last is not None and self._completed - last < self._step_files:
+                    return
+            self._last_completed_reported = self._completed
+            out.write(f"{text}\n")
+        out.flush()

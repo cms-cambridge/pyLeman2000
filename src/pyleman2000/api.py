@@ -27,7 +27,9 @@ from pyleman2000.matlab_worker import (
     MatlabWorkerRunner,
     run_model_matlab,
 )
-from pyleman2000.types import Leman2000Result
+from pyleman2000.progress import BatchProgress
+from pyleman2000.types import Leman2000BatchResult, Leman2000Result, combine_results
+from pyleman2000.worker_sizing import choose_worker_count
 
 BackendName = Literal["octave", "matlab"]
 
@@ -270,6 +272,103 @@ def leman2000(
     )
 
 
+def leman2000_batch(
+    input_files: Sequence[str | Path],
+    local_decay_sec: float | Sequence[float],
+    global_decay_sec: float | Sequence[float],
+    windows: Sequence[Sequence[float]] | None = None,
+    windowing_function: Callable[[np.ndarray], float] = np.mean,
+    keep_auditory_nerve: bool = False,
+    keep_periodicity_pitch: bool = False,
+    *,
+    workers: int | None = None,
+    backend: BackendName = "matlab",
+    docker_image: str | None = None,
+    docker_client: docker.DockerClient | None = None,
+    docker_timeout_sec: float | None = DEFAULT_TIMEOUT_SEC,
+    show_progress: bool = True,
+) -> Leman2000BatchResult:
+    """Analyse many WAV files with a warm worker pool.
+
+    Opens a :class:`Leman2000Pool`, maps ``input_files`` across workers, and
+    returns stacked DataFrames. Worker count defaults to a RAM-aware choice
+    (see :func:`pyleman2000.worker_sizing.choose_worker_count`), overridable
+    via ``workers`` or the ``PYLEMAN2000_WORKERS`` environment variable.
+
+    When ``show_progress`` is True, a batch progress line is shown and
+    per-container run progress is suppressed to avoid overlapping status
+    output.
+
+    Parameters
+    ----------
+    input_files :
+        Paths to WAV files to analyse.
+    local_decay_sec :
+        Local decay parameter(s) in seconds (shared across files).
+    global_decay_sec :
+        Global decay parameter(s) in seconds (shared across files).
+    windows :
+        Optional time windows, as for :func:`leman2000`.
+    windowing_function :
+        Reduction used within each window.
+    keep_auditory_nerve :
+        If True, include auditory nerve outputs on each per-file result.
+    keep_periodicity_pitch :
+        If True, include periodicity pitch outputs on each per-file result.
+    workers :
+        Explicit worker count. When omitted, chosen from available RAM,
+        backend, file count, and emulation heuristics.
+    backend :
+        ``"matlab"`` (default) or ``"octave"``.
+    docker_image :
+        Docker image providing the model.
+    docker_client :
+        Optional Docker SDK client.
+    docker_timeout_sec :
+        Maximum container runtime in seconds per analysis.
+    show_progress :
+        If True, report batch progress on standard error.
+
+    Returns
+    -------
+    Leman2000BatchResult
+        Combined ``files`` / correlation tables plus per-file ``results``.
+    """
+    files = list(input_files)
+    if not files:
+        empty = combine_results([], [], workers=1)
+        return empty
+
+    n_workers = choose_worker_count(
+        len(files),
+        workers=workers,
+        backend=backend,
+    )
+    # Batch progress replaces noisy per-session run progress.
+    session_progress = False
+    progress = BatchProgress() if show_progress else None
+
+    with Leman2000Pool(
+        workers=n_workers,
+        backend=backend,
+        docker_image=docker_image,
+        docker_client=docker_client,
+        docker_timeout_sec=docker_timeout_sec,
+        show_progress=session_progress,
+    ) as pool:
+        results = pool.map(
+            files,
+            local_decay_sec=local_decay_sec,
+            global_decay_sec=global_decay_sec,
+            windows=windows,
+            windowing_function=windowing_function,
+            keep_auditory_nerve=keep_auditory_nerve,
+            keep_periodicity_pitch=keep_periodicity_pitch,
+            progress=progress,
+        )
+    return combine_results(files, results, workers=n_workers)
+
+
 class Leman2000Session:
     """Reuse one Docker container across multiple model runs.
 
@@ -453,6 +552,8 @@ class Leman2000Pool:
         windowing_function: Callable[[np.ndarray], float] = np.mean,
         keep_auditory_nerve: bool = False,
         keep_periodicity_pitch: bool = False,
+        *,
+        progress: BatchProgress | None = None,
     ) -> list[Leman2000Result]:
         """Analyse many WAV files in parallel.
 
@@ -476,6 +577,8 @@ class Leman2000Pool:
             If True, include auditory nerve outputs.
         keep_periodicity_pitch :
             If True, include periodicity pitch outputs.
+        progress :
+            Optional batch progress display updated as files complete.
 
         Returns
         -------
@@ -511,6 +614,10 @@ class Leman2000Pool:
             finally:
                 available.put(session)
 
+        if progress is not None:
+            progress.start(len(files), self._workers)
+
+        completed = 0
         with ThreadPoolExecutor(max_workers=self._workers) as executor:
             futures = [
                 executor.submit(_analyse, index, path)
@@ -520,10 +627,16 @@ class Leman2000Pool:
                 for future in as_completed(futures):
                     index, result = future.result()
                     results[index] = result
+                    completed += 1
+                    if progress is not None:
+                        progress.update(completed)
             except BaseException:
                 for future in futures:
                     future.cancel()
                 raise
+            finally:
+                if progress is not None:
+                    progress.close()
 
         ordered: list[Leman2000Result] = []
         for result in results:
