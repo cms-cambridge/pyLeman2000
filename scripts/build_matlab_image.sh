@@ -132,11 +132,13 @@ build_mex() {
   local matlab_root="$2"
   local mex_dir="${ipem}/AuditoryModel/Matlab8_UNIX"
   log "Building IPEM mexa64 against ${matlab_root}"
+  # Matlab8_UNIX's clean target is `rm Release/*`, which fails on an empty dir.
+  rm -rf "${mex_dir}/Release"
   mkdir -p "${mex_dir}/Release"
   make -C "${mex_dir}" \
     MATLAB_DIR="${matlab_root}" \
     MEX_EXT=mexa64 \
-    clean all install
+    all install
   test -f "${ipem}/IPEMToolbox/Common/IPEMProcessAuditoryModelSafe.mexa64" \
     || die "mex install did not produce IPEMProcessAuditoryModelSafe.mexa64"
 }
