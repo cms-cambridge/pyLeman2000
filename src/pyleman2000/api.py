@@ -187,7 +187,8 @@ def leman2000(
     data. Computation runs in Docker. The default ``backend="octave"`` uses a
     license-free GNU Octave image published to GHCR (``linux/amd64``; see
     ``docker/octave/``). ``backend="matlab"`` uses a compiled MATLAB Runtime
-    worker (see ``docker/matlab/``); that image must be built locally for now.
+    worker (see ``docker/matlab/``); pull ``DEFAULT_MATLAB_IMAGE`` from GHCR
+    or build with ``./scripts/build_matlab_image.sh``.
 
     For repeated analyses in one process, prefer :class:`Leman2000Session`,
     which reuses a warm container. With the MATLAB backend the session keeps
