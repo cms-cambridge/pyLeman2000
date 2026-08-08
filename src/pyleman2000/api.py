@@ -28,7 +28,11 @@ from pyleman2000.matlab_worker import (
     MatlabWorkerRunner,
     run_model_matlab,
 )
-from pyleman2000.progress import BatchProgress
+from pyleman2000.progress import (
+    BatchProgress,
+    BatchProgressReporter,
+    ProgressOption,
+)
 from pyleman2000.types import Leman2000BatchResult, Leman2000Result, combine_results
 from pyleman2000.worker_sizing import choose_worker_count, wav_durations_sec
 
@@ -96,6 +100,21 @@ def _normalize_input_files(
             "Wrap it in a list, e.g. [input_file]."
         )
     return list(input_files)
+
+
+def _resolve_batch_progress(
+    progress: ProgressOption,
+) -> BatchProgressReporter | None:
+    """Return the reporter selected by a public batch progress option."""
+    if progress is True:
+        return BatchProgress()
+    if progress is False:
+        return None
+    if isinstance(progress, BatchProgressReporter):
+        return progress
+    raise TypeError(
+        "progress must be True, False, or a BatchProgressReporter"
+    )
 
 
 def _prepare_analysis_args(
@@ -303,7 +322,7 @@ def leman2000_batch(
     docker_image: str | None = None,
     docker_client: docker.DockerClient | None = None,
     docker_timeout_sec: float | None = DEFAULT_TIMEOUT_SEC,
-    show_progress: bool = True,
+    progress: ProgressOption = True,
     continue_on_error: bool = False,
 ) -> Leman2000BatchResult:
     """Analyse many WAV files with a warm worker pool.
@@ -314,9 +333,8 @@ def leman2000_batch(
     :func:`pyleman2000.worker_sizing.choose_worker_count`), overridable via
     ``workers`` or the ``PYLEMAN2000_WORKERS`` environment variable.
 
-    When ``show_progress`` is True, a batch progress line is shown and
-    per-container run progress is suppressed to avoid overlapping status
-    output.
+    Batch progress replaces per-container run progress to avoid overlapping
+    status output.
 
     Parameters
     ----------
@@ -348,8 +366,10 @@ def leman2000_batch(
         Optional Docker SDK client.
     docker_timeout_sec :
         Maximum container runtime in seconds per analysis.
-    show_progress :
-        If True, report batch progress on standard error.
+    progress :
+        If True, report batch progress on standard error. If False, disable
+        batch progress. A custom :class:`BatchProgressReporter` can be supplied
+        to integrate with another progress UI.
     continue_on_error :
         If True, process all files after individual failures. Failed files
         retain their positions in ``batch.results`` as ``None`` and are
@@ -375,9 +395,7 @@ def leman2000_batch(
         workers=workers,
         backend=backend,
     )
-    # Batch progress replaces noisy per-session run progress.
-    session_progress = False
-    progress = BatchProgress() if show_progress else None
+    reporter = _resolve_batch_progress(progress)
 
     with Leman2000Pool(
         workers=n_workers,
@@ -385,7 +403,7 @@ def leman2000_batch(
         docker_image=docker_image,
         docker_client=docker_client,
         docker_timeout_sec=docker_timeout_sec,
-        show_progress=session_progress,
+        show_progress=False,
     ) as pool:
         if continue_on_error:
             results, errors = pool.map_with_errors(
@@ -396,7 +414,7 @@ def leman2000_batch(
                 windowing_function=windowing_function,
                 keep_auditory_nerve=keep_auditory_nerve,
                 keep_periodicity_pitch=keep_periodicity_pitch,
-                progress=progress,
+                progress=reporter,
             )
         else:
             successful = pool.map(
@@ -407,7 +425,7 @@ def leman2000_batch(
                 windowing_function=windowing_function,
                 keep_auditory_nerve=keep_auditory_nerve,
                 keep_periodicity_pitch=keep_periodicity_pitch,
-                progress=progress,
+                progress=reporter,
             )
             results = cast(list[Leman2000Result | None], successful)
             errors = [None] * len(successful)
@@ -601,7 +619,7 @@ class Leman2000Pool:
         keep_auditory_nerve: bool = False,
         keep_periodicity_pitch: bool = False,
         *,
-        progress: BatchProgress | None = None,
+        progress: BatchProgressReporter | None = None,
     ) -> list[Leman2000Result]:
         """Analyse many WAV files in parallel.
 
@@ -660,7 +678,7 @@ class Leman2000Pool:
         keep_auditory_nerve: bool = False,
         keep_periodicity_pitch: bool = False,
         *,
-        progress: BatchProgress | None = None,
+        progress: BatchProgressReporter | None = None,
     ) -> tuple[list[Leman2000Result | None], list[BaseException | None]]:
         """Analyse all files and return input-aligned results and errors.
 
@@ -699,7 +717,7 @@ class Leman2000Pool:
         keep_auditory_nerve: bool = False,
         keep_periodicity_pitch: bool = False,
         *,
-        progress: BatchProgress | None = None,
+        progress: BatchProgressReporter | None = None,
         continue_on_error: bool,
     ) -> tuple[list[Leman2000Result | None], list[BaseException | None]]:
         """Map files using fail-fast or input-aligned error collection."""

@@ -100,6 +100,10 @@ batch.files
 batch.local_global_comparison.head()
 ```
 
+Batch progress is shown by default. Pass `progress=False` to disable it, or
+provide an object implementing `start(n_files, n_workers)`,
+`update(completed)`, and `close()` to bridge progress into another UI.
+
 `batch.files` always has one row per input and an `ok` or `error` status.
 Its audio metadata columns use pandas nullable numeric dtypes, so their schema
 stays stable when metadata is unavailable. `batch.results` is input-aligned
@@ -182,7 +186,7 @@ correlations typically agree with archived MATLAB/R snapshots to about
 `3e-6` (not bit-identical); feed 22.05 kHz audio for closer
 cross-implementation agreement.
 
-Silence pull/run progress with `show_progress=False`.
+Silence single-analysis pull/run progress with `show_progress=False`.
 
 ### Building images locally
 

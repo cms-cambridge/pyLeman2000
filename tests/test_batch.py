@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import io
 import json
+import time
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -19,6 +20,22 @@ from pyleman2000.progress import BatchProgress
 from pyleman2000.types import Leman2000Result, combine_results
 
 FIXTURE = Path(__file__).parent / "fixtures" / "sample_result.json"
+
+
+class RecordingProgress:
+    def __init__(self) -> None:
+        self.starts: list[tuple[int, int]] = []
+        self.updates: list[int] = []
+        self.close_count = 0
+
+    def start(self, n_files: int, n_workers: int) -> None:
+        self.starts.append((n_files, n_workers))
+
+    def update(self, completed: int) -> None:
+        self.updates.append(completed)
+
+    def close(self) -> None:
+        self.close_count += 1
 
 
 @pytest.fixture
@@ -140,7 +157,7 @@ def test_combine_results_without_windows(raw_result: dict, tmp_path: Path) -> No
 
 
 def test_leman2000_batch_empty() -> None:
-    batch = leman2000_batch([], 0.1, 1.0, show_progress=False)
+    batch = leman2000_batch([], 0.1, 1.0, progress=False)
     assert isinstance(batch, Leman2000BatchResult)
     assert batch.files.empty
     assert batch.local_global_comparison.empty
@@ -149,7 +166,7 @@ def test_leman2000_batch_empty() -> None:
 
 def test_leman2000_batch_rejects_bare_string_path() -> None:
     with pytest.raises(TypeError, match="sequence of paths"):
-        leman2000_batch("only_one.wav", 0.1, 1.0, show_progress=False)
+        leman2000_batch("only_one.wav", 0.1, 1.0, progress=False)
 
 
 def test_leman2000_batch_rejects_non_bool_continue_on_error() -> None:
@@ -158,7 +175,7 @@ def test_leman2000_batch_rejects_non_bool_continue_on_error() -> None:
             [],
             0.1,
             1.0,
-            show_progress=False,
+            progress=False,
             continue_on_error=1,  # type: ignore[arg-type]
         )
 
@@ -184,7 +201,7 @@ def test_leman2000_batch_reports_partial_progress_on_failure(
     with patch("pyleman2000.api.MatlabWorkerRunner", return_value=runner):
         with patch("pyleman2000.api.choose_worker_count", return_value=2):
             with pytest.raises(RuntimeError, match="kaboom"):
-                leman2000_batch(wavs, 0.1, 1.0, workers=2, show_progress=True)
+                leman2000_batch(wavs, 0.1, 1.0, workers=2, progress=True)
 
     # One close per pooled session (both share this mock at workers=2).
     assert runner.close.call_count == 2
@@ -211,7 +228,7 @@ def test_leman2000_batch_continues_and_preserves_failure_alignment(
                 0.1,
                 1.0,
                 workers=2,
-                show_progress=False,
+                progress=False,
                 continue_on_error=True,
             )
 
@@ -254,7 +271,7 @@ def test_leman2000_batch_counts_failures_as_completed_progress(
                 0.1,
                 1.0,
                 workers=1,
-                show_progress=True,
+                progress=True,
                 continue_on_error=True,
             )
 
@@ -280,7 +297,7 @@ def test_leman2000_batch_uses_pool_and_combines(
                 global_decay_sec=1.0,
                 windows=[(0.0, 0.1)],
                 workers=2,
-                show_progress=False,
+                progress=False,
             )
 
     choose.assert_called_once()
@@ -312,7 +329,7 @@ def test_leman2000_batch_reports_progress(
 
     with patch("pyleman2000.api.MatlabWorkerRunner", return_value=runner):
         with patch("pyleman2000.api.choose_worker_count", return_value=1):
-            leman2000_batch(wavs, 0.1, 1.0, workers=1, show_progress=True)
+            leman2000_batch(wavs, 0.1, 1.0, workers=1, progress=True)
 
     lines = stream.getvalue().splitlines()
     assert lines[0] == "Leman (2000) batch: 0/2 files (1 workers)"
@@ -328,8 +345,72 @@ def test_leman2000_batch_quiet_when_progress_disabled(
 
     with patch("pyleman2000.api.MatlabWorkerRunner", return_value=runner):
         with patch("pyleman2000.api.choose_worker_count", return_value=1):
-            leman2000_batch(wavs, 0.1, 1.0, show_progress=False)
+            leman2000_batch(wavs, 0.1, 1.0, progress=False)
 
     captured = capsys.readouterr()
     assert captured.err == ""
     assert captured.out == ""
+
+
+def test_leman2000_batch_uses_custom_progress_and_preserves_order(
+    raw_result: dict, tmp_path: Path
+) -> None:
+    wavs = _make_wavs(tmp_path, 4)
+    reporter = RecordingProgress()
+
+    def make_runner(**_kwargs):
+        runner = MagicMock()
+
+        def run(*, input_file, **_run_kwargs):
+            index = int(Path(input_file).stem.rsplit("_", 1)[1])
+            time.sleep(0.03 if index == 0 else 0.001)
+            return {**raw_result, "audio_length_sec": float(index)}
+
+        runner.run.side_effect = run
+        return runner
+
+    with patch("pyleman2000.api.MatlabWorkerRunner", side_effect=make_runner):
+        with patch("pyleman2000.api.choose_worker_count", return_value=2):
+            batch = leman2000_batch(
+                wavs,
+                0.1,
+                1.0,
+                workers=2,
+                progress=reporter,
+            )
+
+    assert reporter.starts == [(4, 2)]
+    assert reporter.updates == [1, 2, 3, 4]
+    assert reporter.close_count == 1
+    assert [result.audio_length_sec for result in batch.results] == [
+        0.0,
+        1.0,
+        2.0,
+        3.0,
+    ]
+
+
+def test_leman2000_batch_closes_custom_progress_after_failure(
+    raw_result: dict, tmp_path: Path
+) -> None:
+    wavs = _make_wavs(tmp_path, 3)
+    runner = MagicMock()
+    runner.run.side_effect = RuntimeError("kaboom")
+    reporter = RecordingProgress()
+
+    with patch("pyleman2000.api.MatlabWorkerRunner", return_value=runner):
+        with patch("pyleman2000.api.choose_worker_count", return_value=1):
+            with pytest.raises(RuntimeError, match="kaboom"):
+                leman2000_batch(wavs, 0.1, 1.0, progress=reporter)
+
+    assert reporter.starts == [(3, 1)]
+    assert reporter.updates == []
+    assert reporter.close_count == 1
+
+
+def test_leman2000_batch_rejects_none_progress(tmp_path: Path) -> None:
+    wavs = _make_wavs(tmp_path, 1)
+
+    with patch("pyleman2000.api.choose_worker_count", return_value=1):
+        with pytest.raises(TypeError, match="progress must be"):
+            leman2000_batch(wavs, 0.1, 1.0, progress=None)  # type: ignore[arg-type]

@@ -6,7 +6,27 @@ import shutil
 import sys
 import time
 from collections.abc import Mapping
-from typing import Any, TextIO
+from typing import Any, Protocol, TextIO, runtime_checkable
+
+
+@runtime_checkable
+class BatchProgressReporter(Protocol):
+    """Receive lifecycle updates for a multi-file analysis."""
+
+    def start(self, n_files: int, n_workers: int) -> None:
+        """Start reporting a batch."""
+        ...
+
+    def update(self, completed: int) -> None:
+        """Report the number of completed files."""
+        ...
+
+    def close(self) -> None:
+        """Finish reporting the batch."""
+        ...
+
+
+ProgressOption = bool | BatchProgressReporter
 
 _DOWNLOADED_STATUSES = frozenset(
     {
