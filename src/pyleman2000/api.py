@@ -6,7 +6,7 @@ from collections.abc import Callable, Mapping, Sequence
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from queue import Queue
-from typing import Literal
+from typing import Literal, cast
 
 import docker
 import numpy as np
@@ -14,6 +14,7 @@ import numpy as np
 from pyleman2000.docker_runner import (
     DEFAULT_IMAGE,
     DEFAULT_TIMEOUT_SEC,
+    Leman2000WorkerError,
     WarmModelRunner,
     run_model,
 )
@@ -303,6 +304,7 @@ def leman2000_batch(
     docker_client: docker.DockerClient | None = None,
     docker_timeout_sec: float | None = DEFAULT_TIMEOUT_SEC,
     show_progress: bool = True,
+    continue_on_error: bool = False,
 ) -> Leman2000BatchResult:
     """Analyse many WAV files with a warm worker pool.
 
@@ -348,6 +350,10 @@ def leman2000_batch(
         Maximum container runtime in seconds per analysis.
     show_progress :
         If True, report batch progress on standard error.
+    continue_on_error :
+        If True, process all files after individual failures. Failed files
+        retain their positions in ``batch.results`` as ``None`` and are
+        described by ``batch.failures``. If False, raise the first error.
 
     Returns
     -------
@@ -355,6 +361,8 @@ def leman2000_batch(
         Combined ``files`` / correlation tables plus per-file ``results``.
     """
     files = _normalize_input_files(input_files)
+    if not isinstance(continue_on_error, bool):
+        raise TypeError("continue_on_error must be a bool")
     if not files:
         empty = combine_results([], [], workers=1)
         return empty
@@ -379,17 +387,31 @@ def leman2000_batch(
         docker_timeout_sec=docker_timeout_sec,
         show_progress=session_progress,
     ) as pool:
-        results = pool.map(
-            files,
-            local_decay_sec=local_decay_sec,
-            global_decay_sec=global_decay_sec,
-            windows=windows,
-            windowing_function=windowing_function,
-            keep_auditory_nerve=keep_auditory_nerve,
-            keep_periodicity_pitch=keep_periodicity_pitch,
-            progress=progress,
-        )
-    return combine_results(files, results, workers=n_workers)
+        if continue_on_error:
+            results, errors = pool.map_with_errors(
+                files,
+                local_decay_sec=local_decay_sec,
+                global_decay_sec=global_decay_sec,
+                windows=windows,
+                windowing_function=windowing_function,
+                keep_auditory_nerve=keep_auditory_nerve,
+                keep_periodicity_pitch=keep_periodicity_pitch,
+                progress=progress,
+            )
+        else:
+            successful = pool.map(
+                files,
+                local_decay_sec=local_decay_sec,
+                global_decay_sec=global_decay_sec,
+                windows=windows,
+                windowing_function=windowing_function,
+                keep_auditory_nerve=keep_auditory_nerve,
+                keep_periodicity_pitch=keep_periodicity_pitch,
+                progress=progress,
+            )
+            results = cast(list[Leman2000Result | None], successful)
+            errors = [None] * len(successful)
+    return combine_results(files, results, workers=n_workers, errors=errors)
 
 
 class Leman2000Session:
@@ -611,6 +633,76 @@ class Leman2000Pool:
         list[Leman2000Result]
             One result per input path, in input order.
         """
+        results, errors = self._map_outcomes(
+            input_files,
+            local_decay_sec,
+            global_decay_sec,
+            windows,
+            windowing_function,
+            keep_auditory_nerve,
+            keep_periodicity_pitch,
+            progress=progress,
+            continue_on_error=False,
+        )
+        if any(error is not None for error in errors) or any(
+            result is None for result in results
+        ):
+            raise RuntimeError("pool map completed without one result per input")
+        return cast(list[Leman2000Result], results)
+
+    def map_with_errors(
+        self,
+        input_files: Sequence[str | Path],
+        local_decay_sec: float | Sequence[float],
+        global_decay_sec: float | Sequence[float],
+        windows: Sequence[Sequence[float]] | None = None,
+        windowing_function: Callable[[np.ndarray], float] = np.mean,
+        keep_auditory_nerve: bool = False,
+        keep_periodicity_pitch: bool = False,
+        *,
+        progress: BatchProgress | None = None,
+    ) -> tuple[list[Leman2000Result | None], list[BaseException | None]]:
+        """Analyse all files and return input-aligned results and errors.
+
+        Unlike :meth:`map`, an individual file error does not stop remaining
+        work. Exactly one of the result and error entries at each position is
+        non-None. Worker-liveness failures trigger a restart before that
+        session is reused; ordinary file and model errors leave healthy warm
+        workers running.
+
+        Parameters match :meth:`map`.
+
+        Returns
+        -------
+        tuple of list
+            Input-aligned ``(results, errors)`` lists.
+        """
+        return self._map_outcomes(
+            input_files,
+            local_decay_sec,
+            global_decay_sec,
+            windows,
+            windowing_function,
+            keep_auditory_nerve,
+            keep_periodicity_pitch,
+            progress=progress,
+            continue_on_error=True,
+        )
+
+    def _map_outcomes(
+        self,
+        input_files: Sequence[str | Path],
+        local_decay_sec: float | Sequence[float],
+        global_decay_sec: float | Sequence[float],
+        windows: Sequence[Sequence[float]] | None = None,
+        windowing_function: Callable[[np.ndarray], float] = np.mean,
+        keep_auditory_nerve: bool = False,
+        keep_periodicity_pitch: bool = False,
+        *,
+        progress: BatchProgress | None = None,
+        continue_on_error: bool,
+    ) -> tuple[list[Leman2000Result | None], list[BaseException | None]]:
+        """Map files using fail-fast or input-aligned error collection."""
         if self._available is None:
             raise RuntimeError(
                 "Leman2000Pool is not open. Use it as a context manager "
@@ -619,24 +711,37 @@ class Leman2000Pool:
 
         files = _normalize_input_files(input_files)
         if not files:
-            return []
+            return [], []
 
         available = self._available
         results: list[Leman2000Result | None] = [None] * len(files)
+        errors: list[BaseException | None] = [None] * len(files)
 
         def _analyse(index: int, path: str | Path) -> tuple[int, Leman2000Result]:
             session = available.get()
             try:
-                result = session.run(
-                    input_file=path,
-                    local_decay_sec=local_decay_sec,
-                    global_decay_sec=global_decay_sec,
-                    windows=windows,
-                    windowing_function=windowing_function,
-                    keep_auditory_nerve=keep_auditory_nerve,
-                    keep_periodicity_pitch=keep_periodicity_pitch,
-                )
-                return index, result
+                try:
+                    result = session.run(
+                        input_file=path,
+                        local_decay_sec=local_decay_sec,
+                        global_decay_sec=global_decay_sec,
+                        windows=windows,
+                        windowing_function=windowing_function,
+                        keep_auditory_nerve=keep_auditory_nerve,
+                        keep_periodicity_pitch=keep_periodicity_pitch,
+                    )
+                    return index, result
+                except Leman2000WorkerError:
+                    if continue_on_error:
+                        try:
+                            session.__exit__(None, None, None)
+                        except Exception:  # noqa: BLE001 - retry open regardless
+                            pass
+                        try:
+                            session.__enter__()
+                        except Exception:  # noqa: BLE001 - next run reports it
+                            pass
+                    raise
             finally:
                 available.put(session)
 
@@ -645,14 +750,21 @@ class Leman2000Pool:
 
         completed = 0
         with ThreadPoolExecutor(max_workers=self._workers) as executor:
-            futures = [
-                executor.submit(_analyse, index, path)
+            futures = {
+                executor.submit(_analyse, index, path): index
                 for index, path in enumerate(files)
-            ]
+            }
             try:
                 for future in as_completed(futures):
-                    index, result = future.result()
-                    results[index] = result
+                    index = futures[future]
+                    try:
+                        _, result = future.result()
+                    except Exception as exc:  # noqa: BLE001 - returned to caller
+                        if not continue_on_error:
+                            raise
+                        errors[index] = exc
+                    else:
+                        results[index] = result
                     completed += 1
                     if progress is not None:
                         progress.update(completed)
@@ -664,8 +776,4 @@ class Leman2000Pool:
                 if progress is not None:
                     progress.close()
 
-        ordered: list[Leman2000Result] = []
-        for result in results:
-            assert result is not None
-            ordered.append(result)
-        return ordered
+        return results, errors

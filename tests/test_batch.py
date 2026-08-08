@@ -10,6 +10,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from pyleman2000 import (
+    Leman2000BatchFailure,
     Leman2000BatchResult,
     example_wav_path,
     leman2000_batch,
@@ -75,6 +76,59 @@ def test_combine_results_stacks_frames(raw_result: dict, tmp_path: Path) -> None
     assert batch.windowed_local_global_comparison is not None
     assert "input_file" in batch.windowed_local_global_comparison.columns
     assert len(batch.results) == 2
+    assert batch.files["status"].tolist() == ["ok", "ok"]
+    assert batch.failures == ()
+    assert str(batch.files["audio_length_sec"].dtype) == "Float64"
+    assert str(batch.files["num_channels"].dtype) == "Int64"
+    assert str(batch.files["sample_rate"].dtype) == "Float64"
+
+
+def test_combine_results_preserves_nullable_dtypes_on_failures(
+    raw_result: dict, tmp_path: Path
+) -> None:
+    wavs = _make_wavs(tmp_path, 2)
+    error = RuntimeError("kaboom")
+    batch = combine_results(
+        wavs,
+        [_result_from_raw(raw_result), None],
+        workers=1,
+        errors=[None, error],
+    )
+
+    assert str(batch.files["audio_length_sec"].dtype) == "Float64"
+    assert str(batch.files["num_channels"].dtype) == "Int64"
+    assert str(batch.files["sample_rate"].dtype) == "Float64"
+    assert batch.failures[0].exception is error
+
+
+def test_combine_results_handles_all_failed_files(tmp_path: Path) -> None:
+    wavs = _make_wavs(tmp_path, 2)
+    errors = [RuntimeError("first"), ValueError("second")]
+    batch = combine_results(
+        wavs,
+        [None, None],
+        workers=1,
+        errors=errors,
+    )
+
+    assert batch.files["status"].tolist() == ["error", "error"]
+    assert str(batch.files["num_channels"].dtype) == "Int64"
+    assert batch.local_global_comparison.empty
+    assert [failure.exception for failure in batch.failures] == errors
+
+
+def test_combine_results_requires_exactly_one_result_or_error(
+    raw_result: dict, tmp_path: Path
+) -> None:
+    wav = _make_wavs(tmp_path, 1)
+    result = _result_from_raw(raw_result)
+
+    for results, errors in (
+        ([None], None),
+        ([result], [RuntimeError("kaboom")]),
+    ):
+        with pytest.raises(ValueError, match="exactly one result or error"):
+            combine_results(wav, results, workers=1, errors=errors)
 
 
 def test_combine_results_without_windows(raw_result: dict, tmp_path: Path) -> None:
@@ -96,6 +150,17 @@ def test_leman2000_batch_empty() -> None:
 def test_leman2000_batch_rejects_bare_string_path() -> None:
     with pytest.raises(TypeError, match="sequence of paths"):
         leman2000_batch("only_one.wav", 0.1, 1.0, show_progress=False)
+
+
+def test_leman2000_batch_rejects_non_bool_continue_on_error() -> None:
+    with pytest.raises(TypeError, match="continue_on_error must be a bool"):
+        leman2000_batch(
+            [],
+            0.1,
+            1.0,
+            show_progress=False,
+            continue_on_error=1,  # type: ignore[arg-type]
+        )
 
 
 def test_leman2000_batch_reports_partial_progress_on_failure(
@@ -124,6 +189,78 @@ def test_leman2000_batch_reports_partial_progress_on_failure(
     # One close per pooled session (both share this mock at workers=2).
     assert runner.close.call_count == 2
     assert "4/4 files" not in stream.getvalue()
+
+
+def test_leman2000_batch_continues_and_preserves_failure_alignment(
+    raw_result: dict, tmp_path: Path
+) -> None:
+    wavs = _make_wavs(tmp_path, 4)
+    runner = MagicMock()
+
+    def run(*, input_file, **_kwargs):
+        if Path(input_file).name.endswith("2.wav"):
+            raise RuntimeError("kaboom")
+        return raw_result
+
+    runner.run.side_effect = run
+
+    with patch("pyleman2000.api.MatlabWorkerRunner", return_value=runner):
+        with patch("pyleman2000.api.choose_worker_count", return_value=2):
+            batch = leman2000_batch(
+                wavs,
+                0.1,
+                1.0,
+                workers=2,
+                show_progress=False,
+                continue_on_error=True,
+            )
+
+    assert len(batch.results) == 4
+    assert batch.results[2] is None
+    assert all(
+        result is not None for index, result in enumerate(batch.results) if index != 2
+    )
+    assert batch.files["file_id"].tolist() == [1, 2, 3, 4]
+    assert batch.files["status"].tolist() == ["ok", "ok", "error", "ok"]
+    assert set(batch.local_global_comparison["file_id"]) == {1, 2, 4}
+    assert batch.failures == (
+        Leman2000BatchFailure(
+            file_id=3,
+            input_file=str(wavs[2].resolve()),
+            error_type="RuntimeError",
+            message="kaboom",
+            exception=batch.failures[0].exception,
+        ),
+    )
+    assert isinstance(batch.failures[0].exception, RuntimeError)
+
+
+def test_leman2000_batch_counts_failures_as_completed_progress(
+    raw_result: dict, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    wavs = _make_wavs(tmp_path, 2)
+    runner = MagicMock()
+    runner.run.side_effect = [RuntimeError("kaboom"), raw_result]
+    stream = io.StringIO()
+    monkeypatch.setattr(
+        "pyleman2000.api.BatchProgress",
+        lambda *a, **k: BatchProgress(stream, step_files=1),
+    )
+
+    with patch("pyleman2000.api.MatlabWorkerRunner", return_value=runner):
+        with patch("pyleman2000.api.choose_worker_count", return_value=1):
+            leman2000_batch(
+                wavs,
+                0.1,
+                1.0,
+                workers=1,
+                show_progress=True,
+                continue_on_error=True,
+            )
+
+    assert stream.getvalue().splitlines()[-1] == (
+        "Leman (2000) batch: 2/2 files (1 workers)"
+    )
 
 
 def test_leman2000_batch_uses_pool_and_combines(
