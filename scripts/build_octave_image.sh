@@ -7,12 +7,12 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 IMAGE_TAG="${1:-pyleman2000-octave:dev}"
 
-echo "Building ${IMAGE_TAG} from ${ROOT}/docker/octave (linux/amd64) ..."
+echo "Building ${IMAGE_TAG} from repository root (linux/amd64) ..."
 docker build \
   --platform=linux/amd64 \
   -f "${ROOT}/docker/octave/Dockerfile" \
   -t "${IMAGE_TAG}" \
-  "${ROOT}/docker/octave"
+  "${ROOT}"
 
 echo "Done. Local override example:"
 echo "  leman2000(..., docker_image='${IMAGE_TAG}')"

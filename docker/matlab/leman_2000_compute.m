@@ -4,6 +4,11 @@ function res = leman_2000_compute(in_file, local_decay_sec, global_decay_sec, de
 % Returns a struct with fields audio_length_sec, num_channels, sample_rate,
 % local_global_comparison{local_decay_sec, global_decay_sec, running_correlation},
 % plus auditory_nerve / periodicity_pitch when detail > 1.
+%
+% For detail <= 1 (the default pyLeman2000 path), ANI is disk-spooled and
+% periodicity pitch is computed in chunks so peak RAM grows slowly with
+% audio length. detail > 1 keeps the classic full-matrix path so keep_*
+% payloads can include ANI / PP / FANI.
 
   local_decay_sec = parse_array(local_decay_sec);
   global_decay_sec = parse_array(global_decay_sec);
@@ -20,15 +25,15 @@ function res = leman_2000_compute(in_file, local_decay_sec, global_decay_sec, de
 
   audio_length_sec = length(s) / fs;
 
-  [ANI, ANIFreq, ANIFilterFreqs] = IPEMCalcANI(s, fs);
-  [PP, PPFreq, PPPeriods, PPFANI] = IPEMPeriodicityPitch(ANI, ANIFreq);
-
   res = struct();
   res.audio_length_sec = audio_length_sec;
   res.num_channels = num_channels;
   res.sample_rate = fs;
 
   if (detail > 1)
+    [ANI, ANIFreq, ANIFilterFreqs] = IPEMCalcANI(s, fs);
+    clear s;
+    [PP, PPFreq, PPPeriods, PPFANI] = IPEMPeriodicityPitch(ANI, ANIFreq);
     res.auditory_nerve = struct( ...
       'images', ANI, ...
       'sample_freq', ANIFreq, ...
@@ -38,6 +43,17 @@ function res = leman_2000_compute(in_file, local_decay_sec, global_decay_sec, de
       'sample_freq', PPFreq, ...
       'pitch_periods', PPPeriods, ...
       'filtered_auditory_nerve_images', PPFANI);
+    clear ANI ANIFilterFreqs PPFANI;
+  else
+    work_dir = tempname;
+    mkdir(work_dir);
+    cleanup = onCleanup(@() rmdir_if_present(work_dir)); %#ok<NASGU>
+    meta = leman_calc_ani_spool(s, fs, work_dir);
+    clear s;
+    % 1024 downsampled columns ≈ 0.37 s of ANI at 2756.25 Hz.
+    [PP, pp_state] = leman_periodicity_pitch_from_spool(meta, 1024);
+    PPFreq = pp_state.out_sample_freq;
+    PPPeriods = pp_state.out_periods;
   end
 
   % Match MATLAB combvec(local, global): local varies fastest.
@@ -61,6 +77,12 @@ function res = leman_2000_compute(in_file, local_decay_sec, global_decay_sec, de
     end
   end
   res.local_global_comparison = comparisons;
+end
+
+function rmdir_if_present(path)
+  if exist(path, 'dir') == 7
+    rmdir(path, 's');
+  end
 end
 
 function array = parse_array(x)

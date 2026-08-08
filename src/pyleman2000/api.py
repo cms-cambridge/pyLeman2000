@@ -434,12 +434,14 @@ def leman2000_batch(
         return empty
 
     durations = wav_durations_sec(files)
+    detail = 5 if (keep_auditory_nerve or keep_periodicity_pitch) else 0
     n_workers = choose_worker_count(
         len(files),
         total_audio_sec=sum(durations) if durations else None,
         max_audio_sec=max(durations) if durations else None,
         workers=workers,
         backend=backend,
+        detail=detail,
     )
     reporter = _resolve_batch_progress(progress)
 

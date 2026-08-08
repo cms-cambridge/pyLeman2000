@@ -1,0 +1,60 @@
+{
+  "collected_at": "2026-08-07T16:42:16.567319+00:00",
+  "version": "0.1.0",
+  "host": "macOS-15.4.1-arm64-arm-64bit-Mach-O",
+  "n_files": 6,
+  "workers": 3,
+  "auto_workers": 4,
+  "local_decay_sec": [
+    0.1,
+    0.2
+  ],
+  "global_decay_sec": [
+    1.0,
+    2.0
+  ],
+  "repeats": 2,
+  "warmup": 1,
+  "results": {
+    "oneshot_sequential": [
+      67.91783949965611,
+      54.76093320874497
+    ],
+    "session_sequential": [
+      12.465183000080287,
+      11.701005916111171
+    ],
+    "batch_parallel": [
+      24.491669707931578,
+      24.461213000118732
+    ]
+  },
+  "summary": {
+    "oneshot_sequential": {
+      "n": 2,
+      "mean_sec": 61.33938635420054,
+      "stdev_sec": 9.303337657739213,
+      "min_sec": 54.76093320874497,
+      "median_sec": 61.33938635420054,
+      "max_sec": 67.91783949965611
+    },
+    "session_sequential": {
+      "n": 2,
+      "mean_sec": 12.08309445809573,
+      "stdev_sec": 0.5403547981019238,
+      "min_sec": 11.701005916111171,
+      "median_sec": 12.08309445809573,
+      "max_sec": 12.465183000080287
+    },
+    "batch_parallel": {
+      "n": 2,
+      "mean_sec": 24.476441354025155,
+      "stdev_sec": 0.021536144627080502,
+      "min_sec": 24.461213000118732,
+      "median_sec": 24.476441354025155,
+      "max_sec": 24.491669707931578
+    }
+  },
+  "speedup_vs_session": 0.4936622233325051,
+  "speedup_vs_oneshot": 2.506058191507209
+}

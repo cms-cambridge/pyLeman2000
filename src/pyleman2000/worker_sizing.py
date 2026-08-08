@@ -21,15 +21,22 @@ from typing import Literal
 BackendName = Literal["octave", "matlab"]
 
 WORKERS_ENV = "PYLEMAN2000_WORKERS"
-# Measured worker footprints (PSS). MATLAB: ~625 MB once ready, growing by
-# roughly 10 MB per audio-second (900 MB at 30 s, 1.8 GB at 120 s). Octave:
-# ~1.9 GB at 5 s and 11.6 GB at 30 s, close to 400 MB per audio-second.
-MATLAB_WORKER_BASE_RAM_BYTES = 700 * 1024**2
-MATLAB_RAM_BYTES_PER_AUDIO_SEC = 10 * 1024**2
+# Measured worker footprints (PSS). detail<=1 uses the disk-spool ANI path:
+# ~650–750 MB baseline, growing ~0.8 MB per audio-second (see
+# artifacts/benchmark/path_memory_compare.md). Budget uses ~2 MB/s with 1.5x
+# safety for both backends. detail>1 keeps full ANI/PP matrices in RAM
+# (~10 MB/s MATLAB; Octave classic was ~400 MB/s).
+MATLAB_WORKER_BASE_RAM_BYTES = 750 * 1024**2
+MATLAB_RAM_BYTES_PER_AUDIO_SEC = 2 * 1024**2
 MATLAB_RAM_SAFETY_FACTOR = 1.5
-OCTAVE_WORKER_BASE_RAM_BYTES = 256 * 1024**2
-OCTAVE_RAM_BYTES_PER_AUDIO_SEC = 400 * 1024**2
-OCTAVE_RAM_SAFETY_FACTOR = 1.25
+MATLAB_DETAIL_BASE_RAM_BYTES = 700 * 1024**2
+MATLAB_DETAIL_RAM_BYTES_PER_AUDIO_SEC = 10 * 1024**2
+OCTAVE_WORKER_BASE_RAM_BYTES = 750 * 1024**2
+OCTAVE_RAM_BYTES_PER_AUDIO_SEC = 2 * 1024**2
+OCTAVE_RAM_SAFETY_FACTOR = 1.5
+OCTAVE_DETAIL_BASE_RAM_BYTES = 256 * 1024**2
+OCTAVE_DETAIL_RAM_BYTES_PER_AUDIO_SEC = 400 * 1024**2
+OCTAVE_DETAIL_RAM_SAFETY_FACTOR = 1.25
 # On-disk image size gates (distinct from RSS). Packaging spike measured
 # ~3.8 GiB for the MATLAB worker and ~4.4 GiB for Octave; CI fails if the
 # published images balloon past these ceilings.
@@ -172,6 +179,8 @@ def wav_durations_sec(paths: Sequence[str | Path]) -> list[float] | None:
 def ram_per_worker_bytes(
     backend: BackendName = "matlab",
     max_audio_sec: float | None = None,
+    *,
+    detail: int = 0,
 ) -> int:
     """Estimate the RAM one warm worker needs, including headroom.
 
@@ -182,6 +191,10 @@ def ram_per_worker_bytes(
     max_audio_sec :
         Duration of the longest file the worker will analyse. Memory grows
         with audio length; ``None`` assumes a short file.
+    detail :
+        Analysis detail level. ``detail <= 1`` uses the disk-spool path;
+        ``detail > 1`` (e.g. ``keep_*`` intermediates) budgets for the
+        classic full-matrix path.
 
     Returns
     -------
@@ -189,16 +202,29 @@ def ram_per_worker_bytes(
         Estimated bytes per worker.
     """
     longest = max(0.0, float(max_audio_sec or 0.0))
+    keep_intermediates = int(detail) > 1
     if backend == "matlab":
-        estimate = (
-            MATLAB_WORKER_BASE_RAM_BYTES
-            + MATLAB_RAM_BYTES_PER_AUDIO_SEC * longest
-        ) * MATLAB_RAM_SAFETY_FACTOR
+        if keep_intermediates:
+            estimate = (
+                MATLAB_DETAIL_BASE_RAM_BYTES
+                + MATLAB_DETAIL_RAM_BYTES_PER_AUDIO_SEC * longest
+            ) * MATLAB_RAM_SAFETY_FACTOR
+        else:
+            estimate = (
+                MATLAB_WORKER_BASE_RAM_BYTES
+                + MATLAB_RAM_BYTES_PER_AUDIO_SEC * longest
+            ) * MATLAB_RAM_SAFETY_FACTOR
     else:
-        estimate = (
-            OCTAVE_WORKER_BASE_RAM_BYTES
-            + OCTAVE_RAM_BYTES_PER_AUDIO_SEC * longest
-        ) * OCTAVE_RAM_SAFETY_FACTOR
+        if keep_intermediates:
+            estimate = (
+                OCTAVE_DETAIL_BASE_RAM_BYTES
+                + OCTAVE_DETAIL_RAM_BYTES_PER_AUDIO_SEC * longest
+            ) * OCTAVE_DETAIL_RAM_SAFETY_FACTOR
+        else:
+            estimate = (
+                OCTAVE_WORKER_BASE_RAM_BYTES
+                + OCTAVE_RAM_BYTES_PER_AUDIO_SEC * longest
+            ) * OCTAVE_RAM_SAFETY_FACTOR
     return int(estimate)
 
 
@@ -209,6 +235,7 @@ def choose_worker_count(
     max_audio_sec: float | None = None,
     workers: int | None = None,
     backend: BackendName = "matlab",
+    detail: int = 0,
     available_ram: int | None | object = ...,
     cpu_count: int | None | object = ...,
     emulated: bool | None = None,
@@ -238,6 +265,9 @@ def choose_worker_count(
         memory. Leave unset for the safe automatic choice.
     backend :
         ``"matlab"`` or ``"octave"``; selects the per-worker RAM budget.
+    detail :
+        Analysis detail level passed through to :func:`ram_per_worker_bytes`
+        so ``keep_*`` (detail > 1) budgets the full-matrix path.
     available_ram :
         Available RAM in bytes. Defaults to :func:`available_ram_bytes`.
         Pass ``None`` to skip the RAM cap.
@@ -313,7 +343,9 @@ def choose_worker_count(
         if longest is None and total_audio_sec is not None:
             # Without per-file durations, assume files are evenly sized.
             longest = total_audio_sec / n_files
-        per_worker = ram_per_worker_bytes(backend, longest)
+        per_worker = ram_per_worker_bytes(
+            backend, longest, detail=detail
+        )
         caps.append(max(1, available_ram // per_worker))
 
     return max(1, min(desired, *caps))

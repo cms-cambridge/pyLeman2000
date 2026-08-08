@@ -13,7 +13,7 @@ not “anyone can `docker build` from scratch on GitHub-hosted runners.”
 | MATLAB sources | `docker/matlab/*.m` |
 | Runtime product set | `buildresult.json` produced by `mcc` (copied to `build/matlab/` on each build) |
 | Image name | `ghcr.io/cms-cambridge/pyleman2000-matlab:<tag>` |
-| Package default | Digest pin in `DEFAULT_MATLAB_IMAGE` (0.1.0 release) |
+| Package default | Digest pin in `DEFAULT_MATLAB_IMAGE` (0.2.0 release) |
 
 Current IPEM pin: `da1ca9d51d0096b3621a3ef8424622e30c32d9f6` (master after #3).
 
@@ -69,6 +69,11 @@ Default backend is **MATLAB** (`DEFAULT_MATLAB_IMAGE`, digest-pinned). The
 published image is smoke-tested in CI (``pytest -m matlab``) against the
 archived R snapshots. Pass `backend="octave"` for the Octave image, or
 override either with `docker_image=` for a local build tag.
+
+**Memory note:** `leman_2000_compute` with `detail <= 1` disk-spools `.ani`
+and streams periodicity pitch (see `scripts/streaming/README.md`). Rebuild
+the worker image after pulling those helpers so the published tag matches
+source. `keep_*` / `detail > 1` still use the full-matrix path.
 
 Environment variables the worker container expects:
 

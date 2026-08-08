@@ -5,9 +5,15 @@ function leman_2000(in_file, out_file, local_decay_sec, global_decay_sec, detail
 %   audio_length_sec, num_channels, sample_rate,
 %   local_global_comparison[{local_decay_sec, global_decay_sec, running_correlation}],
 %   and optionally auditory_nerve / periodicity_pitch when detail > 1.
+%
+% For detail <= 1, ANI is disk-spooled and periodicity pitch is chunked
+% (same strategy as docker/matlab/leman_2000_compute.m).
+
+  pkg load signal;
 
   toolbox_dir = '/opt/IPEMToolbox/IPEMToolbox';
   addpath(toolbox_dir);
+  addpath('/opt/pyleman_helpers');
   cd(toolbox_dir);
   IPEMSetup;
 
@@ -18,6 +24,7 @@ function leman_2000(in_file, out_file, local_decay_sec, global_decay_sec, detail
 
   local_decay_sec = parse_array(local_decay_sec);
   global_decay_sec = parse_array(global_decay_sec);
+  detail = parse_scalar(detail);
 
   if (num_channels == 2)
     s = (s(1, :) + s(2, :)) / 2;
@@ -25,15 +32,15 @@ function leman_2000(in_file, out_file, local_decay_sec, global_decay_sec, detail
 
   audio_length_sec = length(s) / fs;
 
-  [ANI, ANIFreq, ANIFilterFreqs] = IPEMCalcANI(s, fs);
-  [PP, PPFreq, PPPeriods, PPFANI] = IPEMPeriodicityPitch(ANI, ANIFreq);
-
   res = struct();
   res.audio_length_sec = audio_length_sec;
   res.num_channels = num_channels;
   res.sample_rate = fs;
 
   if (detail > 1)
+    [ANI, ANIFreq, ANIFilterFreqs] = IPEMCalcANI(s, fs);
+    clear s;
+    [PP, PPFreq, PPPeriods, PPFANI] = IPEMPeriodicityPitch(ANI, ANIFreq);
     res.auditory_nerve = struct( ...
       'images', ANI, ...
       'sample_freq', ANIFreq, ...
@@ -43,6 +50,16 @@ function leman_2000(in_file, out_file, local_decay_sec, global_decay_sec, detail
       'sample_freq', PPFreq, ...
       'pitch_periods', PPPeriods, ...
       'filtered_auditory_nerve_images', PPFANI);
+    clear ANI ANIFilterFreqs PPFANI;
+  else
+    work_dir = tempname;
+    mkdir(work_dir);
+    cleanup = onCleanup(@() rmdir_if_present(work_dir)); %#ok<NASGU>
+    meta = leman_calc_ani_spool(s, fs, work_dir);
+    clear s;
+    [PP, pp_state] = leman_periodicity_pitch_from_spool(meta, 1024);
+    PPFreq = pp_state.out_sample_freq;
+    PPPeriods = pp_state.out_periods;
   end
 
   % Match MATLAB combvec(local, global): local varies fastest.
@@ -76,6 +93,12 @@ function leman_2000(in_file, out_file, local_decay_sec, global_decay_sec, detail
   fclose(fid);
 end
 
+function rmdir_if_present(path)
+  if exist(path, 'dir') == 7
+    rmdir(path, 's');
+  end
+end
+
 function array = parse_array(x)
   if (ischar(x) || isstring(x))
     parts = strsplit(char(x), ',');
@@ -85,5 +108,13 @@ function array = parse_array(x)
     end
   else
     array = x(:)';
+  end
+end
+
+function value = parse_scalar(x)
+  if (ischar(x) || isstring(x))
+    value = str2double(char(x));
+  else
+    value = double(x);
   end
 end

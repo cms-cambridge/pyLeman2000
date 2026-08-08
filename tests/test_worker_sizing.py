@@ -54,15 +54,15 @@ def test_octave_short_audio_parallelizes() -> None:
 
 
 def test_octave_long_audio_is_ram_limited() -> None:
-    # Octave peaked at 11.6 GB for one 30 s file, so a 16 GB process budget
-    # safely permits only one worker despite ample compute.
+    # Spool path ~1 GB/worker at 30 s; a tight budget still permits only one.
+    budget = ram_per_worker_bytes("octave", max_audio_sec=30.0)
     assert (
         _choose(
             4,
             120.0,
             max_audio_sec=30.0,
             backend="octave",
-            available_ram=16 * 1024**3,
+            available_ram=budget,
         )
         == 1
     )
@@ -98,17 +98,37 @@ def test_ram_budget_grows_with_audio_length() -> None:
     short = ram_per_worker_bytes("matlab", max_audio_sec=5.0)
     long = ram_per_worker_bytes("matlab", max_audio_sec=300.0)
     assert long > short
-    # Measured peak was ~1.8 GB for 120 s audio; the budget must cover it.
-    assert ram_per_worker_bytes("matlab", max_audio_sec=120.0) >= 1.8 * 1024**3
+    # Spool-path peak was ~806 MB PSS at 120 s; budget must cover it with
+    # safety (see artifacts/benchmark/path_memory_compare.md).
+    assert ram_per_worker_bytes("matlab", max_audio_sec=120.0) >= 900 * 1024**2
+    assert ram_per_worker_bytes("matlab", max_audio_sec=120.0) < 2 * 1024**3
 
 
-def test_octave_ram_budget_exceeds_matlab() -> None:
-    assert ram_per_worker_bytes("octave", 30.0) > ram_per_worker_bytes(
-        "matlab", 30.0
+def test_octave_spool_ram_budget_matches_matlab_order() -> None:
+    # Both backends use the disk-spool path for detail<=1.
+    octave = ram_per_worker_bytes("octave", 30.0)
+    matlab = ram_per_worker_bytes("matlab", 30.0)
+    assert octave == matlab
+    assert octave < 2 * 1024**3
+
+
+def test_detail_ram_budget_uses_full_matrix_path() -> None:
+    spool = ram_per_worker_bytes("matlab", max_audio_sec=30.0, detail=0)
+    detail = ram_per_worker_bytes("matlab", max_audio_sec=30.0, detail=5)
+    assert detail > spool
+    # Classic Octave path remains much hungrier than spool.
+    assert ram_per_worker_bytes("octave", 30.0, detail=5) >= 11.6 * 1024**3
+    assert (
+        _choose(
+            4,
+            120.0,
+            max_audio_sec=30.0,
+            backend="matlab",
+            detail=5,
+            available_ram=2 * detail,
+        )
+        == 2
     )
-    # Measured Octave peaks: 1.9 GB at 5 s and 11.6 GB at 30 s.
-    assert ram_per_worker_bytes("octave", 5.0) >= 1.9 * 1024**3
-    assert ram_per_worker_bytes("octave", 30.0) >= 11.6 * 1024**3
 
 
 def test_explicit_workers_override_duration() -> None:
