@@ -100,15 +100,21 @@ batch.files
 batch.local_global_comparison.head()
 ```
 
-`batch.results` still holds per-file `Leman2000Result` objects when you need
-`keep_*` payloads.
+`batch.files` always has one row per input and an `ok` or `error` status.
+Its audio metadata columns use pandas nullable numeric dtypes, so their schema
+stays stable when metadata is unavailable. `batch.results` is input-aligned
+and contains each per-file `Leman2000Result` when you need `keep_*` payloads.
 
 By default, an error in any file stops the batch. Pass
 `continue_on_error=True` to finish the remaining files instead. The failed
 file keeps its input-aligned position as `None` in `batch.results`, and
-`batch.failures` records its file ID, path, exception type, and message.
-`batch.files` contains every input with an `ok` or `error` status; aggregate
-correlation tables contain successful files and retain their original file IDs.
+`batch.failures` records its file ID, path, exception type, message, and
+original exception object. Aggregate correlation tables contain successful
+files and retain their original file IDs.
+
+For lower-level pool use, `Leman2000Pool.map()` remains fail-fast, while
+`Leman2000Pool.map_with_errors()` processes every file and returns aligned
+`(results, errors)` lists.
 
 Extra workers only pay off once each has enough audio to offset the ~5 s
 MATLAB worker startup, so short MATLAB files stay sequential by default.

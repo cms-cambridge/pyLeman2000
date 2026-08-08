@@ -13,6 +13,7 @@ import pytest
 
 from pyleman2000 import (
     DEFAULT_MATLAB_IMAGE,
+    Leman2000DockerError,
     Leman2000Pool,
     Leman2000Result,
     example_wav_path,
@@ -162,6 +163,43 @@ def test_pool_map_preserves_input_order(raw_result: dict, tmp_path: Path) -> Non
 
     assert [r.audio_length_sec for r in results] == [0.0, 1.0, 2.0, 3.0]
     assert sorted(call_order) == sorted(p.name for p in wavs)
+
+
+def test_pool_map_with_errors_returns_aligned_outcomes(
+    raw_result: dict, tmp_path: Path
+) -> None:
+    wavs = _make_wavs(tmp_path, 3)
+    runner = MagicMock()
+    error = RuntimeError("bad file")
+    runner.run.side_effect = [raw_result, error, raw_result]
+
+    with patch("pyleman2000.api.MatlabWorkerRunner", return_value=runner):
+        with Leman2000Pool(workers=1, show_progress=False) as pool:
+            results, errors = pool.map_with_errors(wavs, 0.1, 1.0)
+
+    assert results[0] is not None
+    assert results[1] is None
+    assert results[2] is not None
+    assert errors == [None, error, None]
+
+
+def test_pool_recovers_docker_worker_after_continued_error(
+    raw_result: dict, tmp_path: Path
+) -> None:
+    wavs = _make_wavs(tmp_path, 2)
+    runner = MagicMock()
+    error = Leman2000DockerError("worker died")
+    runner.run.side_effect = [error, raw_result]
+
+    with patch("pyleman2000.api.MatlabWorkerRunner", return_value=runner):
+        with Leman2000Pool(workers=1, show_progress=False) as pool:
+            results, errors = pool.map_with_errors(wavs, 0.1, 1.0)
+
+    assert results[1] is not None
+    assert errors == [error, None]
+    # Initial open, recovery open; recovery close, context-manager close.
+    assert runner.open.call_count == 2
+    assert runner.close.call_count == 2
 
 
 def test_pool_never_runs_two_jobs_on_same_session(

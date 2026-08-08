@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from copy import deepcopy
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -131,12 +131,15 @@ class Leman2000BatchFailure:
         Name of the exception class raised while processing the file.
     message :
         Exception message.
+    exception :
+        Original exception object, including its type and diagnostic context.
     """
 
     file_id: int
     input_file: str
     error_type: str
     message: str
+    exception: BaseException = field(repr=False, compare=False)
 
 
 @dataclass(frozen=True, eq=False)
@@ -150,7 +153,8 @@ class Leman2000BatchResult:
     files :
         One row per input file. Columns: ``file_id``, ``input_file``,
         ``status``, ``audio_length_sec``, ``num_channels``, ``sample_rate``.
-        Metadata values are missing for files that failed.
+        Metadata values use nullable numeric dtypes and are missing for files
+        that failed.
     local_global_comparison :
         Running correlations for all files, with ``file_id`` and
         ``input_file`` columns prepended.
@@ -165,7 +169,8 @@ class Leman2000BatchResult:
         for ``keep_*`` payloads). A failed file has ``None`` in its original
         position.
     failures :
-        Structured details for failed files, ordered by input position.
+        Structured details and original exceptions for failed files, ordered
+        by input position.
     """
 
     workers: int
@@ -289,6 +294,7 @@ def combine_results(
                     input_file=resolved,
                     error_type=type(error).__name__,
                     message=str(error),
+                    exception=error,
                 )
             )
             continue
@@ -316,7 +322,13 @@ def combine_results(
             framed.insert(0, "file_id", file_id)
             windowed_frames.append(framed)
 
-    files = pd.DataFrame(file_rows, columns=FILE_COLUMNS)
+    files = pd.DataFrame(file_rows, columns=FILE_COLUMNS).astype(
+        {
+            "audio_length_sec": "Float64",
+            "num_channels": "Int64",
+            "sample_rate": "Float64",
+        }
+    )
     if local_frames:
         local_global = pd.concat(local_frames, ignore_index=True)
     else:
