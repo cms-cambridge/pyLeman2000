@@ -12,7 +12,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from pyleman2000 import example_wav_path
-from pyleman2000.docker_runner import Leman2000DockerError
+from pyleman2000.docker_runner import Leman2000DockerError, Leman2000WorkerError
 from pyleman2000.matlab_worker import (
     CONTAINER_DATA_DIR,
     CONTAINER_WORK_DIR,
@@ -44,12 +44,12 @@ def test_publish_request_is_atomic(tmp_path: Path) -> None:
 
 
 def test_wait_for_path_times_out(tmp_path: Path) -> None:
-    with pytest.raises(Leman2000DockerError, match="Timed out"):
+    with pytest.raises(Leman2000WorkerError, match="Timed out"):
         wait_for_path(tmp_path / "missing", timeout_sec=0.05)
 
 
 def test_wait_for_path_detects_dead_worker(tmp_path: Path) -> None:
-    with pytest.raises(Leman2000DockerError, match="exited before"):
+    with pytest.raises(Leman2000WorkerError, match="exited before"):
         wait_for_path(
             tmp_path / "missing",
             timeout_sec=1.0,

@@ -30,6 +30,7 @@ from docker.models.containers import Container
 from pyleman2000.docker_runner import (
     DEFAULT_TIMEOUT_SEC,
     Leman2000DockerError,
+    Leman2000WorkerError,
     _ensure_image,
     _validate_timeout_sec,
     _with_platform,
@@ -69,12 +70,12 @@ def wait_for_path(
     deadline = time.monotonic() + timeout_sec
     while not path.exists():
         if is_alive is not None and not is_alive():
-            raise Leman2000DockerError(
+            raise Leman2000WorkerError(
                 "The MATLAB worker container exited before "
                 f"{path.name!r} appeared."
             )
         if time.monotonic() > deadline:
-            raise Leman2000DockerError(
+            raise Leman2000WorkerError(
                 f"Timed out after {timeout_sec:g} seconds waiting for "
                 f"{path.name!r}."
             )
@@ -270,7 +271,7 @@ class MatlabWorkerRunner:
             or self._work_dir is None
             or self._data_dir is None
         ):
-            raise Leman2000DockerError(
+            raise Leman2000WorkerError(
                 "MatlabWorkerRunner is not open. Use it as a context manager "
                 "or call open() before run()."
             )

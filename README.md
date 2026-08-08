@@ -114,7 +114,9 @@ files and retain their original file IDs.
 
 For lower-level pool use, `Leman2000Pool.map()` remains fail-fast, while
 `Leman2000Pool.map_with_errors()` processes every file and returns aligned
-`(results, errors)` lists.
+`(results, errors)` lists. A timeout, dead container, or other
+`Leman2000WorkerError` restarts that worker before reuse; ordinary request
+errors keep the healthy warm worker running.
 
 Extra workers only pay off once each has enough audio to offset the ~5 s
 MATLAB worker startup, so short MATLAB files stay sequential by default.

@@ -59,6 +59,10 @@ class Leman2000DockerError(RuntimeError):
     """Raised when the Docker-backed model fails to run."""
 
 
+class Leman2000WorkerError(Leman2000DockerError):
+    """Raised when a warm worker is unsafe to reuse."""
+
+
 def _platform_override() -> str:
     """Return the container platform (default ``linux/amd64``).
 
@@ -397,7 +401,7 @@ def _exec_model(
             except FuturesTimeout as exc:
                 future.cancel()
                 duration = f" after {timeout_sec:g} seconds"
-                raise Leman2000DockerError(
+                raise Leman2000WorkerError(
                     f"The Leman (2000) Docker container timed out{duration}."
                 ) from exc
     finally:
@@ -525,7 +529,7 @@ class WarmModelRunner:
     ) -> dict[str, Any]:
         """Copy input in, exec the model, and return parsed JSON."""
         if self._container is None:
-            raise Leman2000DockerError(
+            raise Leman2000WorkerError(
                 "WarmModelRunner is not open. Use it as a context manager "
                 "or call open() before run()."
             )
@@ -554,7 +558,7 @@ class WarmModelRunner:
                 progress.reading()
             return _read_output_json(self._container, output_path)
         except APIError as exc:
-            raise Leman2000DockerError(
+            raise Leman2000WorkerError(
                 f"Docker API error while running {self._image!r}: {exc}"
             ) from exc
         finally:

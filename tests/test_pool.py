@@ -16,6 +16,7 @@ from pyleman2000 import (
     Leman2000DockerError,
     Leman2000Pool,
     Leman2000Result,
+    Leman2000WorkerError,
     example_wav_path,
 )
 from pyleman2000.progress import BatchProgress
@@ -188,7 +189,7 @@ def test_pool_recovers_docker_worker_after_continued_error(
 ) -> None:
     wavs = _make_wavs(tmp_path, 2)
     runner = MagicMock()
-    error = Leman2000DockerError("worker died")
+    error = Leman2000WorkerError("worker died")
     runner.run.side_effect = [error, raw_result]
 
     with patch("pyleman2000.api.MatlabWorkerRunner", return_value=runner):
@@ -200,6 +201,24 @@ def test_pool_recovers_docker_worker_after_continued_error(
     # Initial open, recovery open; recovery close, context-manager close.
     assert runner.open.call_count == 2
     assert runner.close.call_count == 2
+
+
+def test_pool_keeps_healthy_worker_after_request_error(
+    raw_result: dict, tmp_path: Path
+) -> None:
+    wavs = _make_wavs(tmp_path, 2)
+    runner = MagicMock()
+    error = Leman2000DockerError("MATLAB worker request failed: bad file")
+    runner.run.side_effect = [error, raw_result]
+
+    with patch("pyleman2000.api.MatlabWorkerRunner", return_value=runner):
+        with Leman2000Pool(workers=1, show_progress=False) as pool:
+            results, errors = pool.map_with_errors(wavs, 0.1, 1.0)
+
+    assert results[1] is not None
+    assert errors == [error, None]
+    assert runner.open.call_count == 1
+    assert runner.close.call_count == 1
 
 
 def test_pool_never_runs_two_jobs_on_same_session(

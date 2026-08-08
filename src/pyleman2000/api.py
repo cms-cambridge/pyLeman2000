@@ -14,7 +14,7 @@ import numpy as np
 from pyleman2000.docker_runner import (
     DEFAULT_IMAGE,
     DEFAULT_TIMEOUT_SEC,
-    Leman2000DockerError,
+    Leman2000WorkerError,
     WarmModelRunner,
     run_model,
 )
@@ -666,8 +666,9 @@ class Leman2000Pool:
 
         Unlike :meth:`map`, an individual file error does not stop remaining
         work. Exactly one of the result and error entries at each position is
-        non-None. Docker-level failures trigger a worker restart before that
-        session is reused.
+        non-None. Worker-liveness failures trigger a restart before that
+        session is reused; ordinary file and model errors leave healthy warm
+        workers running.
 
         Parameters match :meth:`map`.
 
@@ -730,7 +731,7 @@ class Leman2000Pool:
                         keep_periodicity_pitch=keep_periodicity_pitch,
                     )
                     return index, result
-                except Leman2000DockerError:
+                except Leman2000WorkerError:
                     if continue_on_error:
                         try:
                             session.__exit__(None, None, None)
