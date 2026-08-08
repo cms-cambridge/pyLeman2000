@@ -21,14 +21,15 @@ from typing import Literal
 BackendName = Literal["octave", "matlab"]
 
 WORKERS_ENV = "PYLEMAN2000_WORKERS"
-# Measured warm MATLAB worker footprint (PSS): ~625 MB once ready, growing by
-# roughly 10 MB per second of audio (900 MB at 30 s, 1.8 GB at 120 s).
+# Measured worker footprints (PSS). MATLAB: ~625 MB once ready, growing by
+# roughly 10 MB per audio-second (900 MB at 30 s, 1.8 GB at 120 s). Octave:
+# ~1.9 GB at 5 s and 11.6 GB at 30 s, close to 400 MB per audio-second.
 MATLAB_WORKER_BASE_RAM_BYTES = 700 * 1024**2
-RAM_BYTES_PER_AUDIO_SEC = 10 * 1024**2
-# Headroom over the measured peak, since footprint varies with WAV layout.
-RAM_SAFETY_FACTOR = 1.5
-# Octave is not measured; assume it needs more than the compiled worker.
-OCTAVE_RAM_MULTIPLIER = 2.0
+MATLAB_RAM_BYTES_PER_AUDIO_SEC = 10 * 1024**2
+MATLAB_RAM_SAFETY_FACTOR = 1.5
+OCTAVE_WORKER_BASE_RAM_BYTES = 256 * 1024**2
+OCTAVE_RAM_BYTES_PER_AUDIO_SEC = 400 * 1024**2
+OCTAVE_RAM_SAFETY_FACTOR = 1.25
 # On-disk image size gates (distinct from RSS). Packaging spike measured
 # ~3.8 GiB for the MATLAB worker and ~4.4 GiB for Octave; CI fails if the
 # published images balloon past these ceilings.
@@ -44,10 +45,11 @@ OCTAVE_IMAGE_SIZE_MAX_BYTES = 6 * 1024**3
 # ``ram_per_worker_bytes`` is the assertion that matters.
 MATLAB_WARM_RSS_MIN_BYTES = 128 * 1024**2
 OCTAVE_WARM_RSS_MIN_BYTES = 16 * 1024**2
-# Audio seconds a worker must be given before its ~5 s startup pays for
-# itself. Benchmarked crossover: extra workers lose on short audio and win
-# from roughly 1.6x this much audio per worker upwards.
-AUDIO_SEC_PER_WORKER = 25.0
+# MATLAB pays a ~5 s Runtime startup per worker, so short batches stay
+# sequential. Octave starts for every file even inside a warm container;
+# parallelism paid off strongly for the shortest measured file (0.37 s).
+MATLAB_AUDIO_SEC_PER_WORKER = 25.0
+OCTAVE_AUDIO_SEC_PER_WORKER = 0.4
 DEFAULT_HARD_CAP = 8
 EMULATED_HARD_CAP = 4
 
@@ -176,8 +178,7 @@ def ram_per_worker_bytes(
     Parameters
     ----------
     backend :
-        ``"matlab"`` or ``"octave"``. Octave is unmeasured and assumed to
-        need more than the compiled MATLAB worker.
+        ``"matlab"`` or ``"octave"``; selects the measured memory model.
     max_audio_sec :
         Duration of the longest file the worker will analyse. Memory grows
         with audio length; ``None`` assumes a short file.
@@ -188,11 +189,16 @@ def ram_per_worker_bytes(
         Estimated bytes per worker.
     """
     longest = max(0.0, float(max_audio_sec or 0.0))
-    estimate = (
-        MATLAB_WORKER_BASE_RAM_BYTES + RAM_BYTES_PER_AUDIO_SEC * longest
-    ) * RAM_SAFETY_FACTOR
-    if backend != "matlab":
-        estimate *= OCTAVE_RAM_MULTIPLIER
+    if backend == "matlab":
+        estimate = (
+            MATLAB_WORKER_BASE_RAM_BYTES
+            + MATLAB_RAM_BYTES_PER_AUDIO_SEC * longest
+        ) * MATLAB_RAM_SAFETY_FACTOR
+    else:
+        estimate = (
+            OCTAVE_WORKER_BASE_RAM_BYTES
+            + OCTAVE_RAM_BYTES_PER_AUDIO_SEC * longest
+        ) * OCTAVE_RAM_SAFETY_FACTOR
     return int(estimate)
 
 
@@ -286,7 +292,12 @@ def choose_worker_count(
     if total_audio_sec is None or total_audio_sec <= 0:
         desired = 1
     else:
-        desired = max(1, round(total_audio_sec / AUDIO_SEC_PER_WORKER))
+        audio_per_worker = (
+            MATLAB_AUDIO_SEC_PER_WORKER
+            if backend == "matlab"
+            else OCTAVE_AUDIO_SEC_PER_WORKER
+        )
+        desired = max(1, round(total_audio_sec / audio_per_worker))
 
     caps = [n_files, hard_cap]
 

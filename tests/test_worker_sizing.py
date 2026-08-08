@@ -9,7 +9,7 @@ import pytest
 
 from pyleman2000 import example_wav_path
 from pyleman2000.worker_sizing import (
-    AUDIO_SEC_PER_WORKER,
+    MATLAB_AUDIO_SEC_PER_WORKER,
     WORKERS_ENV,
     choose_worker_count,
     is_likely_emulated_amd64,
@@ -45,7 +45,27 @@ def test_long_audio_scales_up() -> None:
 
 
 def test_workers_track_audio_per_worker_budget() -> None:
-    assert _choose(100, 3 * AUDIO_SEC_PER_WORKER) == 3
+    assert _choose(100, 3 * MATLAB_AUDIO_SEC_PER_WORKER) == 3
+
+
+def test_octave_short_audio_parallelizes() -> None:
+    # 4 x 0.37 s: benchmarked 2.5x faster at 4 workers.
+    assert _choose(4, 4 * 0.37, max_audio_sec=0.37, backend="octave") == 4
+
+
+def test_octave_long_audio_is_ram_limited() -> None:
+    # Octave peaked at 11.6 GB for one 30 s file, so a 16 GB process budget
+    # safely permits only one worker despite ample compute.
+    assert (
+        _choose(
+            4,
+            120.0,
+            max_audio_sec=30.0,
+            backend="octave",
+            available_ram=16 * 1024**3,
+        )
+        == 1
+    )
 
 
 def test_unknown_duration_falls_back_to_one_worker() -> None:
@@ -86,6 +106,9 @@ def test_octave_ram_budget_exceeds_matlab() -> None:
     assert ram_per_worker_bytes("octave", 30.0) > ram_per_worker_bytes(
         "matlab", 30.0
     )
+    # Measured Octave peaks: 1.9 GB at 5 s and 11.6 GB at 30 s.
+    assert ram_per_worker_bytes("octave", 5.0) >= 1.9 * 1024**3
+    assert ram_per_worker_bytes("octave", 30.0) >= 11.6 * 1024**3
 
 
 def test_explicit_workers_override_duration() -> None:

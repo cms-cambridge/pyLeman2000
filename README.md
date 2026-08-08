@@ -82,8 +82,9 @@ included here.
 ## Analysing many files
 
 For many files, use `leman2000_batch`: it opens a worker pool, picks a worker
-count from the total audio duration (override with `workers=` or
-`PYLEMAN2000_WORKERS`), shows progress, and returns stacked DataFrames:
+count from the backend, total audio duration, CPU count, and available RAM
+(override with `workers=` or `PYLEMAN2000_WORKERS`), shows progress, and
+returns stacked DataFrames:
 
 ```python
 from pyleman2000 import example_wav_path, leman2000_batch
@@ -103,8 +104,12 @@ batch.local_global_comparison.head()
 `keep_*` payloads.
 
 Extra workers only pay off once each has enough audio to offset the ~5 s
-worker startup, so short files stay sequential by default. See
-`artifacts/benchmark/batch_scaling.md` for the measurements behind this.
+MATLAB worker startup, so short MATLAB files stay sequential by default.
+Octave starts for every file and parallelizes even short batches, but its
+memory grows much faster with audio length. See
+`artifacts/benchmark/batch_scaling.md` and
+`artifacts/benchmark/batch_scaling_octave.md` for the measurements behind
+these choices.
 Passing `workers=` (or `PYLEMAN2000_WORKERS`) overrides the automatic choice
 and is honoured as given, so it can exceed what memory comfortably allows.
 

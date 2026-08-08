@@ -205,7 +205,8 @@ def main() -> int:
                     )
 
     result = {"meta": meta, "rows": rows}
-    json_path = ARTIFACT_DIR / "batch_scaling.json"
+    suffix = "" if args.backend == "matlab" else f"_{args.backend}"
+    json_path = ARTIFACT_DIR / f"batch_scaling{suffix}.json"
     json_path.write_text(json.dumps(result, indent=2), encoding="utf-8")
 
     lines = [
@@ -237,7 +238,7 @@ def main() -> int:
             f"| {r['mean_sec']:.2f} | {r['throughput_files_per_sec']:.3f} "
             f"| {speedup} |"
         )
-    md_path = ARTIFACT_DIR / "batch_scaling.md"
+    md_path = ARTIFACT_DIR / f"batch_scaling{suffix}.md"
     md_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
     print(f"\nWrote {json_path}")
