@@ -1,0 +1,120 @@
+{
+  "meta": {
+    "timestamp_utc": "2026-08-08T09:09:17.951302+00:00",
+    "host": {
+      "platform": "Linux-6.12.94+-x86_64-with-glibc2.39",
+      "processor": "x86_64",
+      "python": "3.12.3"
+    },
+    "packages": {
+      "pyLeman2000": "0.2.0",
+      "backend": "octave",
+      "image": "ghcr.io/cms-cambridge/pyleman2000-octave@sha256:5883205b24d085ad4c03b46735ac849105109138f4aec9213ee8d8f3c05b4575",
+      "image_id": "sha256:99fd6b9944b2bed23d4345380773b1c9b10e16760138c3b76582a984a584e491"
+    },
+    "parameters": {
+      "local_decay_sec": [
+        0.1,
+        0.5
+      ],
+      "global_decay_sec": [
+        1.0,
+        2.0
+      ],
+      "file_counts": [
+        4
+      ],
+      "durations_sec": [
+        0.4,
+        5.0
+      ],
+      "workers": [
+        1,
+        2,
+        4
+      ],
+      "repeats": 2,
+      "warmup": 1
+    }
+  },
+  "rows": [
+    {
+      "duration_sec": 0.4,
+      "file_count": 4,
+      "workers": 1,
+      "effective_workers": 1,
+      "throughput_files_per_sec": 0.5638035451710983,
+      "n": 2,
+      "mean_sec": 7.094669826501558,
+      "stdev_sec": 0.0602824348943987,
+      "min_sec": 7.0520437080012925,
+      "median_sec": 7.094669826501558,
+      "max_sec": 7.137295945001824
+    },
+    {
+      "duration_sec": 0.4,
+      "file_count": 4,
+      "workers": 2,
+      "effective_workers": 2,
+      "throughput_files_per_sec": 0.9942326617625643,
+      "n": 2,
+      "mean_sec": 4.023203173499496,
+      "stdev_sec": 0.10631869683777509,
+      "min_sec": 3.9480245019985887,
+      "median_sec": 4.023203173499496,
+      "max_sec": 4.098381845000404
+    },
+    {
+      "duration_sec": 0.4,
+      "file_count": 4,
+      "workers": 4,
+      "effective_workers": 4,
+      "throughput_files_per_sec": 1.407219570189224,
+      "n": 2,
+      "mean_sec": 2.8424846304988023,
+      "stdev_sec": 0.06608034987513425,
+      "min_sec": 2.7957587669989152,
+      "median_sec": 2.8424846304988023,
+      "max_sec": 2.8892104939986893
+    },
+    {
+      "duration_sec": 5.0,
+      "file_count": 4,
+      "workers": 1,
+      "effective_workers": 1,
+      "throughput_files_per_sec": 0.04850030225196929,
+      "n": 2,
+      "mean_sec": 82.47371282799759,
+      "stdev_sec": 1.063704618613057,
+      "min_sec": 81.72156007899684,
+      "median_sec": 82.47371282799759,
+      "max_sec": 83.22586557699833
+    },
+    {
+      "duration_sec": 5.0,
+      "file_count": 4,
+      "workers": 2,
+      "effective_workers": 2,
+      "throughput_files_per_sec": 0.09034370978495028,
+      "n": 2,
+      "mean_sec": 44.27535696199993,
+      "stdev_sec": 0.8913480732591164,
+      "min_sec": 43.64507869500085,
+      "median_sec": 44.27535696199993,
+      "max_sec": 44.90563522899902
+    },
+    {
+      "duration_sec": 5.0,
+      "file_count": 4,
+      "workers": 4,
+      "effective_workers": 4,
+      "throughput_files_per_sec": 0.1798313215477336,
+      "n": 2,
+      "mean_sec": 22.24306625549798,
+      "stdev_sec": 0.9713935062916569,
+      "min_sec": 21.55618731999857,
+      "median_sec": 22.24306625549798,
+      "max_sec": 22.929945190997387
+    }
+  ]
+}

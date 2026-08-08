@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import io
 
-from pyleman2000.progress import PullProgress, RunProgress, format_bytes
+from pyleman2000.progress import BatchProgress, PullProgress, RunProgress, format_bytes
 
 
 class _Terminal(io.StringIO):
@@ -93,4 +93,37 @@ def test_run_progress_writes_stepped_lines_when_not_a_terminal() -> None:
         "Running Leman (2000) model: 5s",
         "Running Leman (2000) model: 10s",
         "Reading Leman (2000) results",
+    ]
+
+
+def test_batch_progress_rewrites_on_terminal(monkeypatch) -> None:
+    monkeypatch.setenv("COLUMNS", "200")
+    stream = _Terminal()
+    progress = BatchProgress(stream, min_interval_sec=0)
+
+    progress.start(n_files=3, n_workers=2)
+    progress.update(1)
+    progress.update(3)
+    progress.close()
+
+    assert stream.getvalue().startswith("\r")
+    assert stream.getvalue().endswith("\n")
+    assert "Leman (2000) batch: 3/3 files (2 workers)" in stream.getvalue()
+
+
+def test_batch_progress_writes_lines_when_not_a_terminal() -> None:
+    stream = io.StringIO()
+    progress = BatchProgress(stream, step_files=2)
+
+    progress.start(n_files=4, n_workers=2)
+    progress.update(1)
+    progress.update(2)
+    progress.update(3)
+    progress.update(4)
+    progress.close()
+
+    assert stream.getvalue().splitlines() == [
+        "Leman (2000) batch: 0/4 files (2 workers)",
+        "Leman (2000) batch: 2/4 files (2 workers)",
+        "Leman (2000) batch: 4/4 files (2 workers)",
     ]
