@@ -50,8 +50,21 @@ RUN git clone --filter=blob:none "${IPEM_REPO}" "${IPEM_ROOT}" \
     && make install \
     && test -f "${IPEM_ROOT}/IPEMToolbox/Common/IPEMProcessAuditoryModelSafe.mex"
 
-COPY leman_2000.m /opt/leman_2000.m
-COPY leman_2000_docker.sh /leman_2000_docker.sh
+# Streaming / spool helpers shared with the MATLAB backend (build context =
+# repository root).
+COPY docker/matlab/leman_calc_ani_spool.m \
+     docker/matlab/leman_read_ani_chunk.m \
+     docker/matlab/leman_downsample_ani_init.m \
+     docker/matlab/leman_downsample_ani_chunk.m \
+     docker/matlab/leman_ani_from_spool_chunk.m \
+     docker/matlab/leman_periodicity_pitch_chunk.m \
+     docker/matlab/leman_periodicity_pitch_from_spool.m \
+     docker/matlab/leman_leaky_integration_chunk.m \
+     docker/matlab/leman_contextuality_comparison_stream.m \
+     /opt/pyleman_helpers/
+
+COPY docker/octave/leman_2000.m /opt/leman_2000.m
+COPY docker/octave/leman_2000_docker.sh /leman_2000_docker.sh
 RUN chmod +x /leman_2000_docker.sh
 
 WORKDIR /opt

@@ -1,0 +1,636 @@
+{
+  "collected_at": "2026-08-08T16:15:33.120626+00:00",
+  "host": "pmch2@musix.mus.cam.ac.uk",
+  "local_decay_sec": 0.1,
+  "global_decay_sec": 1.0,
+  "runs": [
+    {
+      "input_file": "/home/pmch2/git/pyLeman2000/artifacts/benchmark/profile_5s_tiled_hihat.wav",
+      "audio_length_sec": 4.82031746031746,
+      "sample_rate": 44100,
+      "local_decay_sec": 0.1,
+      "global_decay_sec": 1,
+      "stages": [
+        {
+          "name": "after_setup",
+          "rss_mb": 877.25390625,
+          "pss_mb": 652.7783203125,
+          "timestamp": "2026-08-08T16:13:09.555916Z",
+          "info": {}
+        },
+        {
+          "name": "after_read_wav",
+          "rss_mb": 908.828125,
+          "pss_mb": 680.08203125,
+          "timestamp": "2026-08-08T16:13:09.861914Z",
+          "info": {
+            "audio_length_sec": 4.82031746031746,
+            "wav_samples": 212576,
+            "bytes_est": 1700608.0
+          }
+        },
+        {
+          "name": "after_calc_ani",
+          "rss_mb": 960.47265625,
+          "pss_mb": 731.126953125,
+          "timestamp": "2026-08-08T16:13:11.373086Z",
+          "info": {
+            "ani_size": [
+              40,
+              13345
+            ],
+            "ani_freq": 2756.25,
+            "bytes_est": 4270400.0
+          }
+        },
+        {
+          "name": "after_clear_wav",
+          "rss_mb": 960.47265625,
+          "pss_mb": 731.177734375,
+          "timestamp": "2026-08-08T16:13:11.394534Z",
+          "info": {
+            "ani_size": [
+              40,
+              13345
+            ],
+            "bytes_est": 4270400.0
+          }
+        },
+        {
+          "name": "after_stream_pp",
+          "rss_mb": 978.5,
+          "pss_mb": 749.720703125,
+          "timestamp": "2026-08-08T16:13:12.190633Z",
+          "info": {
+            "pp_size": [
+              176,
+              464
+            ],
+            "bytes_est": 4923712.0
+          }
+        },
+        {
+          "name": "after_stream_contextuality",
+          "rss_mb": 979.8125,
+          "pss_mb": 751.498046875,
+          "timestamp": "2026-08-08T16:13:12.252885Z",
+          "info": {
+            "corr_len": 464,
+            "bytes_est": 4927424.0
+          }
+        },
+        {
+          "name": "after_clear_stream_outputs",
+          "rss_mb": 980.1953125,
+          "pss_mb": 751.529296875,
+          "timestamp": "2026-08-08T16:13:12.269387Z",
+          "info": {
+            "ani_size": [
+              40,
+              13345
+            ],
+            "bytes_est": 4270400.0
+          }
+        },
+        {
+          "name": "after_periodicity_pitch",
+          "rss_mb": 980.453125,
+          "pss_mb": 752.099609375,
+          "timestamp": "2026-08-08T16:13:12.907472Z",
+          "info": {
+            "pp_size": [
+              176,
+              464
+            ],
+            "ppfani_size": [
+              40,
+              13339
+            ],
+            "bytes_est": 9192192.0
+          }
+        },
+        {
+          "name": "after_clear_ani",
+          "rss_mb": 980.453125,
+          "pss_mb": 752.119140625,
+          "timestamp": "2026-08-08T16:13:12.924535Z",
+          "info": {
+            "pp_size": [
+              176,
+              464
+            ],
+            "ppfani_size": [
+              40,
+              13339
+            ],
+            "bytes_est": 4921792.0
+          }
+        },
+        {
+          "name": "after_contextuality",
+          "rss_mb": 980.8046875,
+          "pss_mb": 752.361328125,
+          "timestamp": "2026-08-08T16:13:12.982903Z",
+          "info": {
+            "corr_len": 464,
+            "bytes_est": 4925504.0
+          }
+        },
+        {
+          "name": "after_clear_ppfani",
+          "rss_mb": 981.0625,
+          "pss_mb": 752.380859375,
+          "timestamp": "2026-08-08T16:13:13.003204Z",
+          "info": {
+            "pp_size": [
+              176,
+              464
+            ],
+            "corr_len": 464,
+            "bytes_est": 657024
+          }
+        },
+        {
+          "name": "after_clear_all",
+          "rss_mb": 981.0625,
+          "pss_mb": 752.455078125,
+          "timestamp": "2026-08-08T16:13:13.019108Z",
+          "info": {}
+        }
+      ],
+      "peak_rss_mb": 981.0625,
+      "peak_pss_mb": 752.455078125
+    },
+    {
+      "input_file": "/home/pmch2/git/pyLeman2000/artifacts/benchmark/profile_30s_tiled_hihat.wav",
+      "audio_length_sec": 30.034285714285716,
+      "sample_rate": 44100,
+      "local_decay_sec": 0.1,
+      "global_decay_sec": 1,
+      "stages": [
+        {
+          "name": "after_setup",
+          "rss_mb": 876,
+          "pss_mb": 653.2568359375,
+          "timestamp": "2026-08-08T16:13:20.123832Z",
+          "info": {}
+        },
+        {
+          "name": "after_read_wav",
+          "rss_mb": 915.3828125,
+          "pss_mb": 688.23828125,
+          "timestamp": "2026-08-08T16:13:20.398564Z",
+          "info": {
+            "audio_length_sec": 30.034285714285716,
+            "wav_samples": 1324512.0,
+            "bytes_est": 10596096.0
+          }
+        },
+        {
+          "name": "after_calc_ani",
+          "rss_mb": 1045.21484375,
+          "pss_mb": 816.5673828125,
+          "timestamp": "2026-08-08T16:13:27.242894Z",
+          "info": {
+            "ani_size": [
+              40,
+              82830
+            ],
+            "ani_freq": 2756.25,
+            "bytes_est": 26505600.0
+          }
+        },
+        {
+          "name": "after_clear_wav",
+          "rss_mb": 1035.16015625,
+          "pss_mb": 806.5126953125,
+          "timestamp": "2026-08-08T16:13:27.265042Z",
+          "info": {
+            "ani_size": [
+              40,
+              82830
+            ],
+            "bytes_est": 26505600.0
+          }
+        },
+        {
+          "name": "after_stream_pp",
+          "rss_mb": 1060.55078125,
+          "pss_mb": 830.0498046875,
+          "timestamp": "2026-08-08T16:13:31.304597Z",
+          "info": {
+            "pp_size": [
+              176,
+              2946
+            ],
+            "bytes_est": 30653568.0
+          }
+        },
+        {
+          "name": "after_stream_contextuality",
+          "rss_mb": 1062.24609375,
+          "pss_mb": 831.9013671875,
+          "timestamp": "2026-08-08T16:13:31.444483Z",
+          "info": {
+            "corr_len": 2946,
+            "bytes_est": 30677136.0
+          }
+        },
+        {
+          "name": "after_clear_stream_outputs",
+          "rss_mb": 1062.24609375,
+          "pss_mb": 831.9404296875,
+          "timestamp": "2026-08-08T16:13:31.461968Z",
+          "info": {
+            "ani_size": [
+              40,
+              82830
+            ],
+            "bytes_est": 26505600.0
+          }
+        },
+        {
+          "name": "after_periodicity_pitch",
+          "rss_mb": 1109.40234375,
+          "pss_mb": 878.83984375,
+          "timestamp": "2026-08-08T16:13:35.804821Z",
+          "info": {
+            "pp_size": [
+              176,
+              2946
+            ],
+            "ppfani_size": [
+              40,
+              82824
+            ],
+            "bytes_est": 57157248.0
+          }
+        },
+        {
+          "name": "after_clear_ani",
+          "rss_mb": 1109.40234375,
+          "pss_mb": 878.85546875,
+          "timestamp": "2026-08-08T16:13:35.823321Z",
+          "info": {
+            "pp_size": [
+              176,
+              2946
+            ],
+            "ppfani_size": [
+              40,
+              82824
+            ],
+            "bytes_est": 30651648.0
+          }
+        },
+        {
+          "name": "after_contextuality",
+          "rss_mb": 1109.7578125,
+          "pss_mb": 879.11328125,
+          "timestamp": "2026-08-08T16:13:35.970479Z",
+          "info": {
+            "corr_len": 2946,
+            "bytes_est": 30675216.0
+          }
+        },
+        {
+          "name": "after_clear_ppfani",
+          "rss_mb": 1072.203125,
+          "pss_mb": 841.359375,
+          "timestamp": "2026-08-08T16:13:35.988342Z",
+          "info": {
+            "pp_size": [
+              176,
+              2946
+            ],
+            "corr_len": 2946,
+            "bytes_est": 4171536.0
+          }
+        },
+        {
+          "name": "after_clear_all",
+          "rss_mb": 1072.203125,
+          "pss_mb": 841.37890625,
+          "timestamp": "2026-08-08T16:13:36.003233Z",
+          "info": {}
+        }
+      ],
+      "peak_rss_mb": 1109.7578125,
+      "peak_pss_mb": 879.11328125
+    },
+    {
+      "input_file": "/home/pmch2/git/pyLeman2000/artifacts/benchmark/profile_60s_tiled_hihat.wav",
+      "audio_length_sec": 60.06857142857143,
+      "sample_rate": 44100,
+      "local_decay_sec": 0.1,
+      "global_decay_sec": 1,
+      "stages": [
+        {
+          "name": "after_setup",
+          "rss_mb": 876.17578125,
+          "pss_mb": 651.8623046875,
+          "timestamp": "2026-08-08T16:13:42.657344Z",
+          "info": {}
+        },
+        {
+          "name": "after_read_wav",
+          "rss_mb": 925.99609375,
+          "pss_mb": 697.384765625,
+          "timestamp": "2026-08-08T16:13:42.908670Z",
+          "info": {
+            "audio_length_sec": 60.06857142857143,
+            "wav_samples": 2649024.0,
+            "bytes_est": 21192192.0
+          }
+        },
+        {
+          "name": "after_calc_ani",
+          "rss_mb": 1215.3046875,
+          "pss_mb": 983.296875,
+          "timestamp": "2026-08-08T16:13:55.897163Z",
+          "info": {
+            "ani_size": [
+              40,
+              165600
+            ],
+            "ani_freq": 2756.25,
+            "bytes_est": 52992000.0
+          }
+        },
+        {
+          "name": "after_clear_wav",
+          "rss_mb": 1195.25,
+          "pss_mb": 963.140625,
+          "timestamp": "2026-08-08T16:13:55.921597Z",
+          "info": {
+            "ani_size": [
+              40,
+              165600
+            ],
+            "bytes_est": 52992000.0
+          }
+        },
+        {
+          "name": "after_stream_pp",
+          "rss_mb": 1217.55859375,
+          "pss_mb": 985.7138671875,
+          "timestamp": "2026-08-08T16:14:04.656398Z",
+          "info": {
+            "pp_size": [
+              176,
+              5902
+            ],
+            "bytes_est": 61302016.0
+          }
+        },
+        {
+          "name": "after_stream_contextuality",
+          "rss_mb": 1219.11328125,
+          "pss_mb": 987.7255859375,
+          "timestamp": "2026-08-08T16:14:04.753597Z",
+          "info": {
+            "corr_len": 5902,
+            "bytes_est": 61349232.0
+          }
+        },
+        {
+          "name": "after_clear_stream_outputs",
+          "rss_mb": 1219.11328125,
+          "pss_mb": 987.7724609375,
+          "timestamp": "2026-08-08T16:14:04.772381Z",
+          "info": {
+            "ani_size": [
+              40,
+              165600
+            ],
+            "bytes_est": 52992000.0
+          }
+        },
+        {
+          "name": "after_periodicity_pitch",
+          "rss_mb": 1269.83203125,
+          "pss_mb": 1038.8515625,
+          "timestamp": "2026-08-08T16:14:13.575989Z",
+          "info": {
+            "pp_size": [
+              176,
+              5902
+            ],
+            "ppfani_size": [
+              40,
+              165594
+            ],
+            "bytes_est": 114292096.0
+          }
+        },
+        {
+          "name": "after_clear_ani",
+          "rss_mb": 1219.484375,
+          "pss_mb": 988.32421875,
+          "timestamp": "2026-08-08T16:14:13.598545Z",
+          "info": {
+            "pp_size": [
+              176,
+              5902
+            ],
+            "ppfani_size": [
+              40,
+              165594
+            ],
+            "bytes_est": 61300096.0
+          }
+        },
+        {
+          "name": "after_contextuality",
+          "rss_mb": 1219.484375,
+          "pss_mb": 988.58984375,
+          "timestamp": "2026-08-08T16:14:13.780902Z",
+          "info": {
+            "corr_len": 5902,
+            "bytes_est": 61347312.0
+          }
+        },
+        {
+          "name": "after_clear_ppfani",
+          "rss_mb": 1169.1875,
+          "pss_mb": 938.0546875,
+          "timestamp": "2026-08-08T16:14:13.802170Z",
+          "info": {
+            "pp_size": [
+              176,
+              5902
+            ],
+            "corr_len": 5902,
+            "bytes_est": 8357232.0
+          }
+        },
+        {
+          "name": "after_clear_all",
+          "rss_mb": 1169.1875,
+          "pss_mb": 938.07421875,
+          "timestamp": "2026-08-08T16:14:13.819825Z",
+          "info": {}
+        }
+      ],
+      "peak_rss_mb": 1269.83203125,
+      "peak_pss_mb": 1038.8515625
+    },
+    {
+      "input_file": "/home/pmch2/git/pyLeman2000/artifacts/benchmark/profile_120s_tiled_hihat.wav",
+      "audio_length_sec": 120.13714285714286,
+      "sample_rate": 44100,
+      "local_decay_sec": 0.1,
+      "global_decay_sec": 1,
+      "stages": [
+        {
+          "name": "after_setup",
+          "rss_mb": 874.578125,
+          "pss_mb": 651.958984375,
+          "timestamp": "2026-08-08T16:14:27.838079Z",
+          "info": {}
+        },
+        {
+          "name": "after_read_wav",
+          "rss_mb": 943.3984375,
+          "pss_mb": 716.4794921875,
+          "timestamp": "2026-08-08T16:14:28.087607Z",
+          "info": {
+            "audio_length_sec": 120.13714285714286,
+            "wav_samples": 5298048.0,
+            "bytes_est": 42384384.0
+          }
+        },
+        {
+          "name": "after_calc_ani",
+          "rss_mb": 1481,
+          "pss_mb": 1249.4033203125,
+          "timestamp": "2026-08-08T16:14:55.404684Z",
+          "info": {
+            "ani_size": [
+              40,
+              331168
+            ],
+            "ani_freq": 2756.25,
+            "bytes_est": 105973760.0
+          }
+        },
+        {
+          "name": "after_clear_wav",
+          "rss_mb": 1440.64453125,
+          "pss_mb": 1209.0478515625,
+          "timestamp": "2026-08-08T16:14:55.433237Z",
+          "info": {
+            "ani_size": [
+              40,
+              331168
+            ],
+            "bytes_est": 105973760.0
+          }
+        },
+        {
+          "name": "after_stream_pp",
+          "rss_mb": 1466.49609375,
+          "pss_mb": 1234.76171875,
+          "timestamp": "2026-08-08T16:15:12.365189Z",
+          "info": {
+            "pp_size": [
+              176,
+              11815
+            ],
+            "bytes_est": 122609280.0
+          }
+        },
+        {
+          "name": "after_stream_contextuality",
+          "rss_mb": 1468.20703125,
+          "pss_mb": 1236.744140625,
+          "timestamp": "2026-08-08T16:15:12.605390Z",
+          "info": {
+            "corr_len": 11815,
+            "bytes_est": 122703800.0
+          }
+        },
+        {
+          "name": "after_clear_stream_outputs",
+          "rss_mb": 1468.20703125,
+          "pss_mb": 1236.779296875,
+          "timestamp": "2026-08-08T16:15:12.630534Z",
+          "info": {
+            "ani_size": [
+              40,
+              331168
+            ],
+            "bytes_est": 105973760.0
+          }
+        },
+        {
+          "name": "after_periodicity_pitch",
+          "rss_mb": 1569.3359375,
+          "pss_mb": 1338.4208984375,
+          "timestamp": "2026-08-08T16:15:28.606967Z",
+          "info": {
+            "pp_size": [
+              176,
+              11815
+            ],
+            "ppfani_size": [
+              40,
+              331162
+            ],
+            "bytes_est": 228581120.0
+          }
+        },
+        {
+          "name": "after_clear_ani",
+          "rss_mb": 1468.296875,
+          "pss_mb": 1237.3701171875,
+          "timestamp": "2026-08-08T16:15:28.636041Z",
+          "info": {
+            "pp_size": [
+              176,
+              11815
+            ],
+            "ppfani_size": [
+              40,
+              331162
+            ],
+            "bytes_est": 122607360.0
+          }
+        },
+        {
+          "name": "after_contextuality",
+          "rss_mb": 1468.296875,
+          "pss_mb": 1237.6142578125,
+          "timestamp": "2026-08-08T16:15:29.208420Z",
+          "info": {
+            "corr_len": 11815,
+            "bytes_est": 122701880.0
+          }
+        },
+        {
+          "name": "after_clear_ppfani",
+          "rss_mb": 1367.46484375,
+          "pss_mb": 1136.5556640625,
+          "timestamp": "2026-08-08T16:15:29.233535Z",
+          "info": {
+            "pp_size": [
+              176,
+              11815
+            ],
+            "corr_len": 11815,
+            "bytes_est": 16730040.0
+          }
+        },
+        {
+          "name": "after_clear_all",
+          "rss_mb": 1367.46484375,
+          "pss_mb": 1136.5751953125,
+          "timestamp": "2026-08-08T16:15:29.253829Z",
+          "info": {}
+        }
+      ],
+      "peak_rss_mb": 1569.3359375,
+      "peak_pss_mb": 1338.4208984375
+    }
+  ]
+}

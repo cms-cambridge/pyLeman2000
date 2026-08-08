@@ -1,0 +1,1051 @@
+{
+  "collected_at": "2026-08-08T16:53:04.668820+00:00",
+  "host": "pmch2@musix.mus.cam.ac.uk",
+  "chunk_len": 1024,
+  "cases": [
+    {
+      "duration_sec_target": 5.0,
+      "wav": "profile_5s_tiled_hihat.wav",
+      "modes": {
+        "batch": {
+          "mode": "batch",
+          "input_file": "/home/pmch2/git/pyLeman2000/artifacts/benchmark/profile_5s_tiled_hihat.wav",
+          "audio_length_sec": 4.82031746031746,
+          "sample_rate": 44100,
+          "chunk_len": 1024,
+          "stages": [
+            {
+              "name": "after_setup",
+              "rss_mb": 878.8828125,
+              "pss_mb": 654.498046875,
+              "timestamp": "2026-08-08T16:47:33.565173Z",
+              "info": {}
+            },
+            {
+              "name": "after_read_wav",
+              "rss_mb": 910.3359375,
+              "pss_mb": 681.552734375,
+              "timestamp": "2026-08-08T16:47:33.803431Z",
+              "info": {
+                "audio_length_sec": 4.82031746031746,
+                "wav_samples": 212576
+              }
+            },
+            {
+              "name": "after_calc_ani",
+              "rss_mb": 962.83984375,
+              "pss_mb": 732.6591796875,
+              "timestamp": "2026-08-08T16:47:35.126435Z",
+              "info": {
+                "ani_size": [
+                  40,
+                  13345
+                ],
+                "bytes_est": 4270400.0
+              }
+            },
+            {
+              "name": "after_clear_wav",
+              "rss_mb": 962.83984375,
+              "pss_mb": 732.7021484375,
+              "timestamp": "2026-08-08T16:47:35.145021Z",
+              "info": {}
+            },
+            {
+              "name": "after_periodicity_pitch",
+              "rss_mb": 980.2265625,
+              "pss_mb": 750.1845703125,
+              "timestamp": "2026-08-08T16:47:35.844201Z",
+              "info": {
+                "pp_size": [
+                  176,
+                  464
+                ],
+                "ppfani_size": [
+                  40,
+                  13339
+                ],
+                "bytes_est": 9192192.0
+              }
+            },
+            {
+              "name": "after_clear_ani",
+              "rss_mb": 980.58984375,
+              "pss_mb": 750.4033203125,
+              "timestamp": "2026-08-08T16:47:35.862622Z",
+              "info": {}
+            },
+            {
+              "name": "after_contextuality",
+              "rss_mb": 982.07421875,
+              "pss_mb": 752.1572265625,
+              "timestamp": "2026-08-08T16:47:35.940843Z",
+              "info": {
+                "corr_len": 464
+              }
+            },
+            {
+              "name": "after_clear_all",
+              "rss_mb": 982.07421875,
+              "pss_mb": 752.1884765625,
+              "timestamp": "2026-08-08T16:47:35.958233Z",
+              "info": {}
+            }
+          ],
+          "peak_rss_mb": 982.07421875,
+          "peak_pss_mb": 752.1884765625,
+          "baseline_pss_mb": 654.498046875,
+          "delta_peak_pss_mb": 97.6904296875
+        },
+        "spool": {
+          "mode": "spool",
+          "input_file": "/home/pmch2/git/pyLeman2000/artifacts/benchmark/profile_5s_tiled_hihat.wav",
+          "audio_length_sec": 4.82031746031746,
+          "sample_rate": 44100,
+          "chunk_len": 1024,
+          "stages": [
+            {
+              "name": "after_setup",
+              "rss_mb": 876.05859375,
+              "pss_mb": 652.1533203125,
+              "timestamp": "2026-08-08T16:47:43.129972Z",
+              "info": {}
+            },
+            {
+              "name": "after_read_wav",
+              "rss_mb": 907.28125,
+              "pss_mb": 679.0966796875,
+              "timestamp": "2026-08-08T16:47:43.335398Z",
+              "info": {
+                "audio_length_sec": 4.82031746031746,
+                "wav_samples": 212576
+              }
+            },
+            {
+              "name": "after_ani_spool",
+              "rss_mb": 930.69921875,
+              "pss_mb": 701.572265625,
+              "timestamp": "2026-08-08T16:47:44.157431Z",
+              "info": {
+                "ani_file_bytes": 28040741.0,
+                "trim_cols": 221
+              }
+            },
+            {
+              "name": "after_clear_wav",
+              "rss_mb": 930.69921875,
+              "pss_mb": 701.603515625,
+              "timestamp": "2026-08-08T16:47:44.177053Z",
+              "info": {}
+            },
+            {
+              "name": "after_spool_pp",
+              "rss_mb": 966.02734375,
+              "pss_mb": 737.0244140625,
+              "timestamp": "2026-08-08T16:47:45.316840Z",
+              "info": {
+                "pp_size": [
+                  176,
+                  464
+                ],
+                "bytes_est": 653312
+              }
+            },
+            {
+              "name": "after_spool_contextuality",
+              "rss_mb": 967.3359375,
+              "pss_mb": 738.8369140625,
+              "timestamp": "2026-08-08T16:47:45.410766Z",
+              "info": {
+                "corr_len": 464,
+                "bytes_est": 657024
+              }
+            },
+            {
+              "name": "after_clear_all",
+              "rss_mb": 967.71875,
+              "pss_mb": 738.8720703125,
+              "timestamp": "2026-08-08T16:47:45.428689Z",
+              "info": {}
+            }
+          ],
+          "peak_rss_mb": 967.71875,
+          "peak_pss_mb": 738.8720703125,
+          "baseline_pss_mb": 652.1533203125,
+          "delta_peak_pss_mb": 86.71875
+        }
+      },
+      "audio_length_sec": 4.82031746031746
+    },
+    {
+      "duration_sec_target": 15.0,
+      "wav": "profile_15s_tiled_hihat.wav",
+      "modes": {
+        "batch": {
+          "mode": "batch",
+          "input_file": "/home/pmch2/git/pyLeman2000/artifacts/benchmark/profile_15s_tiled_hihat.wav",
+          "audio_length_sec": 14.831746031746032,
+          "sample_rate": 44100,
+          "chunk_len": 1024,
+          "stages": [
+            {
+              "name": "after_setup",
+              "rss_mb": 864.08203125,
+              "pss_mb": 639.755859375,
+              "timestamp": "2026-08-08T16:47:53.233940Z",
+              "info": {}
+            },
+            {
+              "name": "after_read_wav",
+              "rss_mb": 897.7109375,
+              "pss_mb": 668.986328125,
+              "timestamp": "2026-08-08T16:47:53.451862Z",
+              "info": {
+                "audio_length_sec": 14.831746031746032,
+                "wav_samples": 654080
+              }
+            },
+            {
+              "name": "after_calc_ani",
+              "rss_mb": 960.71484375,
+              "pss_mb": 731.2041015625,
+              "timestamp": "2026-08-08T16:47:57.018781Z",
+              "info": {
+                "ani_size": [
+                  40,
+                  40935
+                ],
+                "bytes_est": 13099200.0
+              }
+            },
+            {
+              "name": "after_clear_wav",
+              "rss_mb": 960.71484375,
+              "pss_mb": 731.2353515625,
+              "timestamp": "2026-08-08T16:47:57.039965Z",
+              "info": {}
+            },
+            {
+              "name": "after_periodicity_pitch",
+              "rss_mb": 1008.5390625,
+              "pss_mb": 779.7568359375,
+              "timestamp": "2026-08-08T16:47:59.141402Z",
+              "info": {
+                "pp_size": [
+                  176,
+                  1450
+                ],
+                "ppfani_size": [
+                  40,
+                  40929
+                ],
+                "bytes_est": 28238080.0
+              }
+            },
+            {
+              "name": "after_clear_ani",
+              "rss_mb": 1008.890625,
+              "pss_mb": 779.9716796875,
+              "timestamp": "2026-08-08T16:47:59.159482Z",
+              "info": {}
+            },
+            {
+              "name": "after_contextuality",
+              "rss_mb": 1010.37890625,
+              "pss_mb": 781.9404296875,
+              "timestamp": "2026-08-08T16:47:59.333579Z",
+              "info": {
+                "corr_len": 1450
+              }
+            },
+            {
+              "name": "after_clear_all",
+              "rss_mb": 991.7421875,
+              "pss_mb": 763.3076171875,
+              "timestamp": "2026-08-08T16:47:59.352417Z",
+              "info": {}
+            }
+          ],
+          "peak_rss_mb": 1010.37890625,
+          "peak_pss_mb": 781.9404296875,
+          "baseline_pss_mb": 639.755859375,
+          "delta_peak_pss_mb": 142.1845703125
+        },
+        "spool": {
+          "mode": "spool",
+          "input_file": "/home/pmch2/git/pyLeman2000/artifacts/benchmark/profile_15s_tiled_hihat.wav",
+          "audio_length_sec": 14.831746031746032,
+          "sample_rate": 44100,
+          "chunk_len": 1024,
+          "stages": [
+            {
+              "name": "after_setup",
+              "rss_mb": 878.79296875,
+              "pss_mb": 655.5078125,
+              "timestamp": "2026-08-08T16:48:06.470461Z",
+              "info": {}
+            },
+            {
+              "name": "after_read_wav",
+              "rss_mb": 911.9921875,
+              "pss_mb": 684.4541015625,
+              "timestamp": "2026-08-08T16:48:06.689798Z",
+              "info": {
+                "audio_length_sec": 14.831746031746032,
+                "wav_samples": 654080
+              }
+            },
+            {
+              "name": "after_ani_spool",
+              "rss_mb": 941.68359375,
+              "pss_mb": 713.2578125,
+              "timestamp": "2026-08-08T16:48:08.930954Z",
+              "info": {
+                "ani_file_bytes": 85538822.0,
+                "trim_cols": 221
+              }
+            },
+            {
+              "name": "after_clear_wav",
+              "rss_mb": 941.68359375,
+              "pss_mb": 713.2890625,
+              "timestamp": "2026-08-08T16:48:08.951395Z",
+              "info": {}
+            },
+            {
+              "name": "after_spool_pp",
+              "rss_mb": 971.4921875,
+              "pss_mb": 742.2451171875,
+              "timestamp": "2026-08-08T16:48:12.345527Z",
+              "info": {
+                "pp_size": [
+                  176,
+                  1450
+                ],
+                "bytes_est": 2041600.0
+              }
+            },
+            {
+              "name": "after_spool_contextuality",
+              "rss_mb": 977.265625,
+              "pss_mb": 748.3349609375,
+              "timestamp": "2026-08-08T16:48:12.454517Z",
+              "info": {
+                "corr_len": 1450,
+                "bytes_est": 2053200.0
+              }
+            },
+            {
+              "name": "after_clear_all",
+              "rss_mb": 977.265625,
+              "pss_mb": 748.3779296875,
+              "timestamp": "2026-08-08T16:48:12.475006Z",
+              "info": {}
+            }
+          ],
+          "peak_rss_mb": 977.265625,
+          "peak_pss_mb": 748.3779296875,
+          "baseline_pss_mb": 655.5078125,
+          "delta_peak_pss_mb": 92.8701171875
+        }
+      },
+      "audio_length_sec": 14.831746031746032
+    },
+    {
+      "duration_sec_target": 30.0,
+      "wav": "profile_30s_tiled_hihat.wav",
+      "modes": {
+        "batch": {
+          "mode": "batch",
+          "input_file": "/home/pmch2/git/pyLeman2000/artifacts/benchmark/profile_30s_tiled_hihat.wav",
+          "audio_length_sec": 30.034285714285716,
+          "sample_rate": 44100,
+          "chunk_len": 1024,
+          "stages": [
+            {
+              "name": "after_setup",
+              "rss_mb": 875.640625,
+              "pss_mb": 653.3515625,
+              "timestamp": "2026-08-08T16:48:21.595519Z",
+              "info": {}
+            },
+            {
+              "name": "after_read_wav",
+              "rss_mb": 914.5703125,
+              "pss_mb": 687.935546875,
+              "timestamp": "2026-08-08T16:48:21.828506Z",
+              "info": {
+                "audio_length_sec": 30.034285714285716,
+                "wav_samples": 1324512.0
+              }
+            },
+            {
+              "name": "after_calc_ani",
+              "rss_mb": 1044.1328125,
+              "pss_mb": 816.06640625,
+              "timestamp": "2026-08-08T16:48:28.596097Z",
+              "info": {
+                "ani_size": [
+                  40,
+                  82830
+                ],
+                "bytes_est": 26505600.0
+              }
+            },
+            {
+              "name": "after_clear_wav",
+              "rss_mb": 1044.1328125,
+              "pss_mb": 816.10546875,
+              "timestamp": "2026-08-08T16:48:28.618609Z",
+              "info": {}
+            },
+            {
+              "name": "after_periodicity_pitch",
+              "rss_mb": 1097.30078125,
+              "pss_mb": 867.1455078125,
+              "timestamp": "2026-08-08T16:48:32.461032Z",
+              "info": {
+                "pp_size": [
+                  176,
+                  2946
+                ],
+                "ppfani_size": [
+                  40,
+                  82824
+                ],
+                "bytes_est": 57157248.0
+              }
+            },
+            {
+              "name": "after_clear_ani",
+              "rss_mb": 1097.6484375,
+              "pss_mb": 867.3642578125,
+              "timestamp": "2026-08-08T16:48:32.481104Z",
+              "info": {}
+            },
+            {
+              "name": "after_contextuality",
+              "rss_mb": 1099.08984375,
+              "pss_mb": 869.0986328125,
+              "timestamp": "2026-08-08T16:48:32.646663Z",
+              "info": {
+                "corr_len": 2946
+              }
+            },
+            {
+              "name": "after_clear_all",
+              "rss_mb": 1099.08984375,
+              "pss_mb": 869.1376953125,
+              "timestamp": "2026-08-08T16:48:32.665215Z",
+              "info": {}
+            }
+          ],
+          "peak_rss_mb": 1099.08984375,
+          "peak_pss_mb": 869.1376953125,
+          "baseline_pss_mb": 653.3515625,
+          "delta_peak_pss_mb": 215.7861328125
+        },
+        "spool": {
+          "mode": "spool",
+          "input_file": "/home/pmch2/git/pyLeman2000/artifacts/benchmark/profile_30s_tiled_hihat.wav",
+          "audio_length_sec": 30.034285714285716,
+          "sample_rate": 44100,
+          "chunk_len": 1024,
+          "stages": [
+            {
+              "name": "after_setup",
+              "rss_mb": 862.44921875,
+              "pss_mb": 638.017578125,
+              "timestamp": "2026-08-08T16:48:40.332189Z",
+              "info": {}
+            },
+            {
+              "name": "after_read_wav",
+              "rss_mb": 901.71875,
+              "pss_mb": 672.95703125,
+              "timestamp": "2026-08-08T16:48:40.548575Z",
+              "info": {
+                "audio_length_sec": 30.034285714285716,
+                "wav_samples": 1324512.0
+              }
+            },
+            {
+              "name": "after_ani_spool",
+              "rss_mb": 938.0234375,
+              "pss_mb": 708.8916015625,
+              "timestamp": "2026-08-08T16:48:44.635439Z",
+              "info": {
+                "ani_file_bytes": 172848002.0,
+                "trim_cols": 221
+              }
+            },
+            {
+              "name": "after_clear_wav",
+              "rss_mb": 938.0234375,
+              "pss_mb": 708.9267578125,
+              "timestamp": "2026-08-08T16:48:44.654707Z",
+              "info": {}
+            },
+            {
+              "name": "after_spool_pp",
+              "rss_mb": 964.50390625,
+              "pss_mb": 733.4462890625,
+              "timestamp": "2026-08-08T16:48:50.935380Z",
+              "info": {
+                "pp_size": [
+                  176,
+                  2946
+                ],
+                "bytes_est": 4147968.0
+              }
+            },
+            {
+              "name": "after_spool_contextuality",
+              "rss_mb": 969.640625,
+              "pss_mb": 738.9189453125,
+              "timestamp": "2026-08-08T16:48:51.045814Z",
+              "info": {
+                "corr_len": 2946,
+                "bytes_est": 4171536.0
+              }
+            },
+            {
+              "name": "after_clear_all",
+              "rss_mb": 969.8984375,
+              "pss_mb": 738.9619140625,
+              "timestamp": "2026-08-08T16:48:51.063118Z",
+              "info": {}
+            }
+          ],
+          "peak_rss_mb": 969.8984375,
+          "peak_pss_mb": 738.9619140625,
+          "baseline_pss_mb": 638.017578125,
+          "delta_peak_pss_mb": 100.9443359375
+        }
+      },
+      "audio_length_sec": 30.034285714285716
+    },
+    {
+      "duration_sec_target": 60.0,
+      "wav": "profile_60s_tiled_hihat.wav",
+      "modes": {
+        "batch": {
+          "mode": "batch",
+          "input_file": "/home/pmch2/git/pyLeman2000/artifacts/benchmark/profile_60s_tiled_hihat.wav",
+          "audio_length_sec": 60.06857142857143,
+          "sample_rate": 44100,
+          "chunk_len": 1024,
+          "stages": [
+            {
+              "name": "after_setup",
+              "rss_mb": 871.328125,
+              "pss_mb": 648.640625,
+              "timestamp": "2026-08-08T16:48:58.341597Z",
+              "info": {}
+            },
+            {
+              "name": "after_read_wav",
+              "rss_mb": 920.78125,
+              "pss_mb": 693.7685546875,
+              "timestamp": "2026-08-08T16:48:58.612218Z",
+              "info": {
+                "audio_length_sec": 60.06857142857143,
+                "wav_samples": 2649024.0
+              }
+            },
+            {
+              "name": "after_calc_ani",
+              "rss_mb": 1177.6171875,
+              "pss_mb": 946.763671875,
+              "timestamp": "2026-08-08T16:49:12.243237Z",
+              "info": {
+                "ani_size": [
+                  40,
+                  165600
+                ],
+                "bytes_est": 52992000.0
+              }
+            },
+            {
+              "name": "after_clear_wav",
+              "rss_mb": 1177.6171875,
+              "pss_mb": 946.798828125,
+              "timestamp": "2026-08-08T16:49:12.267450Z",
+              "info": {}
+            },
+            {
+              "name": "after_periodicity_pitch",
+              "rss_mb": 1244.79296875,
+              "pss_mb": 1014.6318359375,
+              "timestamp": "2026-08-08T16:49:20.334829Z",
+              "info": {
+                "pp_size": [
+                  176,
+                  5902
+                ],
+                "ppfani_size": [
+                  40,
+                  165594
+                ],
+                "bytes_est": 114292096.0
+              }
+            },
+            {
+              "name": "after_clear_ani",
+              "rss_mb": 1194.75,
+              "pss_mb": 964.3115234375,
+              "timestamp": "2026-08-08T16:49:20.360256Z",
+              "info": {}
+            },
+            {
+              "name": "after_contextuality",
+              "rss_mb": 1195.92578125,
+              "pss_mb": 966.1396484375,
+              "timestamp": "2026-08-08T16:49:20.667557Z",
+              "info": {
+                "corr_len": 5902
+              }
+            },
+            {
+              "name": "after_clear_all",
+              "rss_mb": 1145.62109375,
+              "pss_mb": 915.6240234375,
+              "timestamp": "2026-08-08T16:49:20.690392Z",
+              "info": {}
+            }
+          ],
+          "peak_rss_mb": 1244.79296875,
+          "peak_pss_mb": 1014.6318359375,
+          "baseline_pss_mb": 648.640625,
+          "delta_peak_pss_mb": 365.9912109375
+        },
+        "spool": {
+          "mode": "spool",
+          "input_file": "/home/pmch2/git/pyLeman2000/artifacts/benchmark/profile_60s_tiled_hihat.wav",
+          "audio_length_sec": 60.06857142857143,
+          "sample_rate": 44100,
+          "chunk_len": 1024,
+          "stages": [
+            {
+              "name": "after_setup",
+              "rss_mb": 880.46875,
+              "pss_mb": 654.27734375,
+              "timestamp": "2026-08-08T16:49:28.513288Z",
+              "info": {}
+            },
+            {
+              "name": "after_read_wav",
+              "rss_mb": 930.24609375,
+              "pss_mb": 699.7265625,
+              "timestamp": "2026-08-08T16:49:28.753663Z",
+              "info": {
+                "audio_length_sec": 60.06857142857143,
+                "wav_samples": 2649024.0
+              }
+            },
+            {
+              "name": "after_ani_spool",
+              "rss_mb": 981.6171875,
+              "pss_mb": 750.46484375,
+              "timestamp": "2026-08-08T16:49:37.163925Z",
+              "info": {
+                "ani_file_bytes": 345340682.0,
+                "trim_cols": 221
+              }
+            },
+            {
+              "name": "after_clear_wav",
+              "rss_mb": 981.6171875,
+              "pss_mb": 750.49609375,
+              "timestamp": "2026-08-08T16:49:37.184938Z",
+              "info": {}
+            },
+            {
+              "name": "after_spool_pp",
+              "rss_mb": 1028.8828125,
+              "pss_mb": 795.212890625,
+              "timestamp": "2026-08-08T16:49:49.232726Z",
+              "info": {
+                "pp_size": [
+                  176,
+                  5902
+                ],
+                "bytes_est": 8310016.0
+              }
+            },
+            {
+              "name": "after_spool_contextuality",
+              "rss_mb": 1030.3671875,
+              "pss_mb": 797.169921875,
+              "timestamp": "2026-08-08T16:49:49.406609Z",
+              "info": {
+                "corr_len": 5902,
+                "bytes_est": 8357232.0
+              }
+            },
+            {
+              "name": "after_clear_all",
+              "rss_mb": 1030.3671875,
+              "pss_mb": 797.205078125,
+              "timestamp": "2026-08-08T16:49:49.424625Z",
+              "info": {}
+            }
+          ],
+          "peak_rss_mb": 1030.3671875,
+          "peak_pss_mb": 797.205078125,
+          "baseline_pss_mb": 654.27734375,
+          "delta_peak_pss_mb": 142.927734375
+        }
+      },
+      "audio_length_sec": 60.06857142857143
+    },
+    {
+      "duration_sec_target": 90.0,
+      "wav": "profile_90s_tiled_hihat.wav",
+      "modes": {
+        "batch": {
+          "mode": "batch",
+          "input_file": "/home/pmch2/git/pyLeman2000/artifacts/benchmark/profile_90s_tiled_hihat.wav",
+          "audio_length_sec": 90.10285714285715,
+          "sample_rate": 44100,
+          "chunk_len": 1024,
+          "stages": [
+            {
+              "name": "after_setup",
+              "rss_mb": 872.25390625,
+              "pss_mb": 648.271484375,
+              "timestamp": "2026-08-08T16:50:02.616465Z",
+              "info": {}
+            },
+            {
+              "name": "after_read_wav",
+              "rss_mb": 930.69921875,
+              "pss_mb": 702.482421875,
+              "timestamp": "2026-08-08T16:50:02.869296Z",
+              "info": {
+                "audio_length_sec": 90.10285714285715,
+                "wav_samples": 3973536.0
+              }
+            },
+            {
+              "name": "after_calc_ani",
+              "rss_mb": 1342.2890625,
+              "pss_mb": 1110.1357421875,
+              "timestamp": "2026-08-08T16:50:22.959784Z",
+              "info": {
+                "ani_size": [
+                  40,
+                  248398
+                ],
+                "bytes_est": 79487360.0
+              }
+            },
+            {
+              "name": "after_clear_wav",
+              "rss_mb": 1342.2890625,
+              "pss_mb": 1110.1708984375,
+              "timestamp": "2026-08-08T16:50:22.984048Z",
+              "info": {}
+            },
+            {
+              "name": "after_periodicity_pitch",
+              "rss_mb": 1434.703125,
+              "pss_mb": 1202.9580078125,
+              "timestamp": "2026-08-08T16:50:35.892740Z",
+              "info": {
+                "pp_size": [
+                  176,
+                  8859
+                ],
+                "ppfani_size": [
+                  40,
+                  248392
+                ],
+                "bytes_est": 171446272.0
+              }
+            },
+            {
+              "name": "after_clear_ani",
+              "rss_mb": 1359.1328125,
+              "pss_mb": 1127.3681640625,
+              "timestamp": "2026-08-08T16:50:35.919751Z",
+              "info": {}
+            },
+            {
+              "name": "after_contextuality",
+              "rss_mb": 1360.390625,
+              "pss_mb": 1129.2587890625,
+              "timestamp": "2026-08-08T16:50:36.253523Z",
+              "info": {
+                "corr_len": 8859
+              }
+            },
+            {
+              "name": "after_clear_all",
+              "rss_mb": 1284.828125,
+              "pss_mb": 1053.4814453125,
+              "timestamp": "2026-08-08T16:50:36.279075Z",
+              "info": {}
+            }
+          ],
+          "peak_rss_mb": 1434.703125,
+          "peak_pss_mb": 1202.9580078125,
+          "baseline_pss_mb": 648.271484375,
+          "delta_peak_pss_mb": 554.6865234375
+        },
+        "spool": {
+          "mode": "spool",
+          "input_file": "/home/pmch2/git/pyLeman2000/artifacts/benchmark/profile_90s_tiled_hihat.wav",
+          "audio_length_sec": 90.10285714285715,
+          "sample_rate": 44100,
+          "chunk_len": 1024,
+          "stages": [
+            {
+              "name": "after_setup",
+              "rss_mb": 880.4921875,
+              "pss_mb": 656.1962890625,
+              "timestamp": "2026-08-08T16:50:43.632631Z",
+              "info": {}
+            },
+            {
+              "name": "after_read_wav",
+              "rss_mb": 939.08984375,
+              "pss_mb": 710.3984375,
+              "timestamp": "2026-08-08T16:50:43.869549Z",
+              "info": {
+                "audio_length_sec": 90.10285714285715,
+                "wav_samples": 3973536.0
+              }
+            },
+            {
+              "name": "after_ani_spool",
+              "rss_mb": 1007.890625,
+              "pss_mb": 776.6142578125,
+              "timestamp": "2026-08-08T16:50:55.778972Z",
+              "info": {
+                "ani_file_bytes": 517891193.0,
+                "trim_cols": 221
+              }
+            },
+            {
+              "name": "after_clear_wav",
+              "rss_mb": 1007.890625,
+              "pss_mb": 776.6455078125,
+              "timestamp": "2026-08-08T16:50:55.798637Z",
+              "info": {}
+            },
+            {
+              "name": "after_spool_pp",
+              "rss_mb": 1066.359375,
+              "pss_mb": 835.087890625,
+              "timestamp": "2026-08-08T16:51:13.493075Z",
+              "info": {
+                "pp_size": [
+                  176,
+                  8859
+                ],
+                "bytes_est": 12473472.0
+              }
+            },
+            {
+              "name": "after_spool_contextuality",
+              "rss_mb": 1067.83984375,
+              "pss_mb": 837.123046875,
+              "timestamp": "2026-08-08T16:51:13.704248Z",
+              "info": {
+                "corr_len": 8859,
+                "bytes_est": 12544344.0
+              }
+            },
+            {
+              "name": "after_clear_all",
+              "rss_mb": 1068.09765625,
+              "pss_mb": 837.158203125,
+              "timestamp": "2026-08-08T16:51:13.722457Z",
+              "info": {}
+            }
+          ],
+          "peak_rss_mb": 1068.09765625,
+          "peak_pss_mb": 837.158203125,
+          "baseline_pss_mb": 656.1962890625,
+          "delta_peak_pss_mb": 180.9619140625
+        }
+      },
+      "audio_length_sec": 90.10285714285715
+    },
+    {
+      "duration_sec_target": 120.0,
+      "wav": "profile_120s_tiled_hihat.wav",
+      "modes": {
+        "batch": {
+          "mode": "batch",
+          "input_file": "/home/pmch2/git/pyLeman2000/artifacts/benchmark/profile_120s_tiled_hihat.wav",
+          "audio_length_sec": 120.13714285714286,
+          "sample_rate": 44100,
+          "chunk_len": 1024,
+          "stages": [
+            {
+              "name": "after_setup",
+              "rss_mb": 877.1953125,
+              "pss_mb": 652.2255859375,
+              "timestamp": "2026-08-08T16:51:23.267535Z",
+              "info": {}
+            },
+            {
+              "name": "after_read_wav",
+              "rss_mb": 945.875,
+              "pss_mb": 716.62890625,
+              "timestamp": "2026-08-08T16:51:23.518079Z",
+              "info": {
+                "audio_length_sec": 120.13714285714286,
+                "wav_samples": 5298048.0
+              }
+            },
+            {
+              "name": "after_calc_ani",
+              "rss_mb": 1482.27734375,
+              "pss_mb": 1249.7197265625,
+              "timestamp": "2026-08-08T16:51:49.942931Z",
+              "info": {
+                "ani_size": [
+                  40,
+                  331168
+                ],
+                "bytes_est": 105973760.0
+              }
+            },
+            {
+              "name": "after_clear_wav",
+              "rss_mb": 1482.27734375,
+              "pss_mb": 1249.7705078125,
+              "timestamp": "2026-08-08T16:51:49.969292Z",
+              "info": {}
+            },
+            {
+              "name": "after_periodicity_pitch",
+              "rss_mb": 1600.82421875,
+              "pss_mb": 1368.1591796875,
+              "timestamp": "2026-08-08T16:52:06.234815Z",
+              "info": {
+                "pp_size": [
+                  176,
+                  11815
+                ],
+                "ppfani_size": [
+                  40,
+                  331162
+                ],
+                "bytes_est": 228581120.0
+              }
+            },
+            {
+              "name": "after_clear_ani",
+              "rss_mb": 1499.99609375,
+              "pss_mb": 1267.3115234375,
+              "timestamp": "2026-08-08T16:52:06.266281Z",
+              "info": {}
+            },
+            {
+              "name": "after_contextuality",
+              "rss_mb": 1501.265625,
+              "pss_mb": 1269.2529296875,
+              "timestamp": "2026-08-08T16:52:06.836365Z",
+              "info": {
+                "corr_len": 11815
+              }
+            },
+            {
+              "name": "after_clear_all",
+              "rss_mb": 1400.4296875,
+              "pss_mb": 1168.2060546875,
+              "timestamp": "2026-08-08T16:52:06.866825Z",
+              "info": {}
+            }
+          ],
+          "peak_rss_mb": 1600.82421875,
+          "peak_pss_mb": 1368.1591796875,
+          "baseline_pss_mb": 652.2255859375,
+          "delta_peak_pss_mb": 715.93359375
+        },
+        "spool": {
+          "mode": "spool",
+          "input_file": "/home/pmch2/git/pyLeman2000/artifacts/benchmark/profile_120s_tiled_hihat.wav",
+          "audio_length_sec": 120.13714285714286,
+          "sample_rate": 44100,
+          "chunk_len": 1024,
+          "stages": [
+            {
+              "name": "after_setup",
+              "rss_mb": 864.921875,
+              "pss_mb": 642.3935546875,
+              "timestamp": "2026-08-08T16:52:19.277380Z",
+              "info": {}
+            },
+            {
+              "name": "after_read_wav",
+              "rss_mb": 933.6171875,
+              "pss_mb": 706.8251953125,
+              "timestamp": "2026-08-08T16:52:19.588994Z",
+              "info": {
+                "audio_length_sec": 120.13714285714286,
+                "wav_samples": 5298048.0
+              }
+            },
+            {
+              "name": "after_ani_spool",
+              "rss_mb": 977.5234375,
+              "pss_mb": 747.4033203125,
+              "timestamp": "2026-08-08T16:52:36.221443Z",
+              "info": {
+                "ani_file_bytes": 690384394.0,
+                "trim_cols": 221
+              }
+            },
+            {
+              "name": "after_clear_wav",
+              "rss_mb": 977.5234375,
+              "pss_mb": 747.4345703125,
+              "timestamp": "2026-08-08T16:52:36.243251Z",
+              "info": {}
+            },
+            {
+              "name": "after_spool_pp",
+              "rss_mb": 1033.84765625,
+              "pss_mb": 803.6728515625,
+              "timestamp": "2026-08-08T16:53:01.446093Z",
+              "info": {
+                "pp_size": [
+                  176,
+                  11815
+                ],
+                "bytes_est": 16635520.0
+              }
+            },
+            {
+              "name": "after_spool_contextuality",
+              "rss_mb": 1035.890625,
+              "pss_mb": 805.7431640625,
+              "timestamp": "2026-08-08T16:53:01.828451Z",
+              "info": {
+                "corr_len": 11815,
+                "bytes_est": 16730040.0
+              }
+            },
+            {
+              "name": "after_clear_all",
+              "rss_mb": 1035.890625,
+              "pss_mb": 805.7744140625,
+              "timestamp": "2026-08-08T16:53:01.846038Z",
+              "info": {}
+            }
+          ],
+          "peak_rss_mb": 1035.890625,
+          "peak_pss_mb": 805.7744140625,
+          "baseline_pss_mb": 642.3935546875,
+          "delta_peak_pss_mb": 163.380859375
+        }
+      },
+      "audio_length_sec": 120.13714285714286
+    }
+  ]
+}

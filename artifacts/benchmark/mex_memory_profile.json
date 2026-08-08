@@ -1,0 +1,148 @@
+{
+  "collected_at": "2026-08-08T16:20:36.120655+00:00",
+  "host": "pmch2@musix.mus.cam.ac.uk",
+  "runs": [
+    {
+      "input_file": "/home/pmch2/git/pyLeman2000/artifacts/benchmark/profile_30s_tiled_hihat.wav",
+      "audio_length_sec": 30.034285714285716,
+      "sample_rate": 44100,
+      "ani_file_bytes": 172848002.0,
+      "pid": 473904,
+      "stages": [
+        {
+          "name": "after_setup",
+          "rss_mb": 865.39453125,
+          "pss_mb": 642.0361328125,
+          "timestamp": "2026-08-08T16:20:06.128384Z",
+          "info": {}
+        },
+        {
+          "name": "after_read_wav",
+          "rss_mb": 905.57421875,
+          "pss_mb": 677.712890625,
+          "timestamp": "2026-08-08T16:20:06.813634Z",
+          "info": {
+            "audio_length_sec": 30.034285714285716,
+            "wav_samples": 1324512.0
+          }
+        },
+        {
+          "name": "after_resample_pad",
+          "rss_mb": 921.7421875,
+          "pss_mb": 693.1025390625,
+          "timestamp": "2026-08-08T16:20:06.953741Z",
+          "info": {
+            "resampled_samples": 663138
+          }
+        },
+        {
+          "name": "after_write_input_wav",
+          "rss_mb": 928.15234375,
+          "pss_mb": 699.4462890625,
+          "timestamp": "2026-08-08T16:20:07.036519Z",
+          "info": {}
+        },
+        {
+          "name": "before_mex",
+          "rss_mb": 931.21484375,
+          "pss_mb": 702.5068359375,
+          "timestamp": "2026-08-08T16:20:07.192365Z",
+          "info": {}
+        },
+        {
+          "name": "after_mex_before_textread",
+          "rss_mb": 931.75,
+          "pss_mb": 703.0771484375,
+          "timestamp": "2026-08-08T16:20:11.360027Z",
+          "info": {}
+        },
+        {
+          "name": "after_stat_ani_file",
+          "rss_mb": 931.75,
+          "pss_mb": 703.1669921875,
+          "timestamp": "2026-08-08T16:20:11.376086Z",
+          "info": {
+            "ani_file_bytes": 172848002.0
+          }
+        }
+      ],
+      "peak_rss_mb": 931.75,
+      "peak_pss_mb": 703.1669921875,
+      "polled_peak_rss_mb": 931.75,
+      "polled_peak_pss_mb": 703.1865234375,
+      "poll_samples": 61,
+      "poll_sample_file": "/tmp/pyleman_mex_profile_profile_30s_tiled_hihat.wav/samples.jsonl"
+    },
+    {
+      "input_file": "/home/pmch2/git/pyLeman2000/artifacts/benchmark/profile_120s_tiled_hihat.wav",
+      "audio_length_sec": 120.13714285714286,
+      "sample_rate": 44100,
+      "ani_file_bytes": 690384394.0,
+      "pid": 475394,
+      "stages": [
+        {
+          "name": "after_setup",
+          "rss_mb": 871.28125,
+          "pss_mb": 648.89453125,
+          "timestamp": "2026-08-08T16:20:17.590914Z",
+          "info": {}
+        },
+        {
+          "name": "after_read_wav",
+          "rss_mb": 940.7578125,
+          "pss_mb": 713.8134765625,
+          "timestamp": "2026-08-08T16:20:17.911804Z",
+          "info": {
+            "audio_length_sec": 120.13714285714286,
+            "wav_samples": 5298048.0
+          }
+        },
+        {
+          "name": "after_resample_pad",
+          "rss_mb": 952.99609375,
+          "pss_mb": 725.05078125,
+          "timestamp": "2026-08-08T16:20:18.095252Z",
+          "info": {
+            "resampled_samples": 2649906.0
+          }
+        },
+        {
+          "name": "after_write_input_wav",
+          "rss_mb": 938.9296875,
+          "pss_mb": 710.7431640625,
+          "timestamp": "2026-08-08T16:20:18.201064Z",
+          "info": {}
+        },
+        {
+          "name": "before_mex",
+          "rss_mb": 942.5390625,
+          "pss_mb": 714.392578125,
+          "timestamp": "2026-08-08T16:20:18.379616Z",
+          "info": {}
+        },
+        {
+          "name": "after_mex_before_textread",
+          "rss_mb": 945.28515625,
+          "pss_mb": 714.3203125,
+          "timestamp": "2026-08-08T16:20:35.261795Z",
+          "info": {}
+        },
+        {
+          "name": "after_stat_ani_file",
+          "rss_mb": 945.28515625,
+          "pss_mb": 714.427734375,
+          "timestamp": "2026-08-08T16:20:35.278384Z",
+          "info": {
+            "ani_file_bytes": 690384394.0
+          }
+        }
+      ],
+      "peak_rss_mb": 952.99609375,
+      "peak_pss_mb": 725.05078125,
+      "polled_peak_rss_mb": 945.28515625,
+      "polled_peak_pss_mb": 714.8779296875,
+      "poll_samples": 248,
+      "poll_sample_file": "/tmp/pyleman_mex_profile_profile_120s_tiled_hihat.wav/samples.jsonl"
+    }
+  ]
+}

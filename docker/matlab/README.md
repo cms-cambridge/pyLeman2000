@@ -70,6 +70,11 @@ published image is smoke-tested in CI (``pytest -m matlab``) against the
 archived R snapshots. Pass `backend="octave"` for the Octave image, or
 override either with `docker_image=` for a local build tag.
 
+**Memory note:** `leman_2000_compute` with `detail <= 1` disk-spools `.ani`
+and streams periodicity pitch (see `scripts/streaming/README.md`). Rebuild
+the worker image after pulling those helpers so the published tag matches
+source. `keep_*` / `detail > 1` still use the full-matrix path.
+
 Environment variables the worker container expects:
 
 - `AGREE_TO_MATLAB_RUNTIME_LICENSE=yes`

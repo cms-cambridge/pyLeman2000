@@ -1,0 +1,30 @@
+{
+  "chunk_len": 1024,
+  "repeats": 1,
+  "cases": [
+    {
+      "duration_sec": 5,
+      "n_ani_cols": 13814,
+      "n_pp_frames": 481,
+      "batch_ani_sec": 1.366338,
+      "stream_ani_sec": 1.054616,
+      "batch_ani_pp_sec": 2.155251,
+      "stream_ani_pp_sec": 1.826103,
+      "ani_speedup": 1.295578675081736,
+      "ani_pp_speedup": 1.1802461306947087
+    },
+    {
+      "duration_sec": 30,
+      "n_ani_cols": 82720,
+      "n_pp_frames": 2942,
+      "batch_ani_sec": 6.403506,
+      "stream_ani_sec": 5.661203,
+      "batch_ani_pp_sec": 10.066680999999999,
+      "stream_ani_pp_sec": 9.962922,
+      "ani_speedup": 1.1311210709101933,
+      "ani_pp_speedup": 1.0104145149384887
+    }
+  ],
+  "collected_at": "2026-08-08T16:36:24.967068+00:00",
+  "host": "pmch2@musix.mus.cam.ac.uk"
+}
