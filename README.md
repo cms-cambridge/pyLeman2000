@@ -197,7 +197,7 @@ MATLAB (needs MATLAB Compiler on Linux amd64):
 
 ```bash
 ./scripts/build_matlab_image.sh                 # local pyleman2000-matlab:dev
-./scripts/build_matlab_image.sh --tag 0.1.0 --push
+./scripts/build_matlab_image.sh --tag 0.2.0 --push
 ```
 
 Local `pyleman2000-octave:*` / `pyleman2000-matlab:*` tags are never pulled
@@ -205,8 +205,8 @@ from a registry; if missing you get an error pointing at the build script.
 
 Octave publishing to GHCR is handled by `.github/workflows/docker-publish.yml`
 (`linux/amd64`). Pushes to `main` refresh `:dev`; manual workflow dispatch
-publishes version tags such as `:0.1.0` (and `:latest`). Package defaults are
-digest pins of the 0.1.0 images. See `docker/matlab/README.md` for the MATLAB
+publishes version tags such as `:0.2.0` (and `:latest`). Package defaults are
+digest pins of the 0.2.0 images. See `docker/matlab/README.md` for the MATLAB
 worker protocol.
 
 ### Tests

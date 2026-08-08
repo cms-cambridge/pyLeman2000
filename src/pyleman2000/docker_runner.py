@@ -26,12 +26,12 @@ from requests.exceptions import Timeout
 from pyleman2000.progress import PullProgress, RunProgress
 
 # linux/amd64 image published by .github/workflows/docker-publish.yml.
-# Branch pushes refresh :dev; workflow_dispatch publishes :0.1.0 (+ :latest).
+# Branch pushes refresh :dev; workflow_dispatch publishes version tags (+ :latest).
 # The package default is pinned to a digest for reproducibility.
 # Apple Silicon runs via Docker Desktop Rosetta/QEMU.
 DEFAULT_IMAGE = (
     "ghcr.io/cms-cambridge/pyleman2000-octave"
-    "@sha256:5883205b24d085ad4c03b46735ac849105109138f4aec9213ee8d8f3c05b4575"
+    "@sha256:620898b112f273f5c7da80ce857a66c0e7a3cf1a1538d5e4a1cd13f8f48b19ab"
 )
 # Local contributor tag from ./scripts/build_octave_image.sh
 LOCAL_DEV_IMAGE = "pyleman2000-octave:dev"
