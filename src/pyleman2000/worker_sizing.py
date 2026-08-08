@@ -36,10 +36,14 @@ MATLAB_IMAGE_SIZE_MIN_BYTES = 2 * 1024**3
 MATLAB_IMAGE_SIZE_MAX_BYTES = 5 * 1024**3
 OCTAVE_IMAGE_SIZE_MIN_BYTES = 2 * 1024**3
 OCTAVE_IMAGE_SIZE_MAX_BYTES = 6 * 1024**3
-# Warm-container working-set floors: loaded Runtime / Octave should be well
-# above an empty shell, and at or below the per-worker RSS budgets above.
-MATLAB_WARM_RSS_MIN_BYTES = 512 * 1024**2
-OCTAVE_WARM_RSS_MIN_BYTES = 64 * 1024**2
+# Warm-container working-set floors. These only guard against a bogus (near
+# zero) reading; they are deliberately loose because Docker reports cgroup
+# usage minus page cache, which excludes the mapped runtime libraries and so
+# runs well below a PSS measurement of the same process. Observed on GitHub
+# runners: 385 MB (MATLAB) and 58 MB (Octave). The upper bound from
+# ``ram_per_worker_bytes`` is the assertion that matters.
+MATLAB_WARM_RSS_MIN_BYTES = 128 * 1024**2
+OCTAVE_WARM_RSS_MIN_BYTES = 16 * 1024**2
 # Audio seconds a worker must be given before its ~5 s startup pays for
 # itself. Benchmarked crossover: extra workers lose on short audio and win
 # from roughly 1.6x this much audio per worker upwards.

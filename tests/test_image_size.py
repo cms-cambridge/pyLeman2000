@@ -89,7 +89,11 @@ def test_matlab_image_size_within_budget() -> None:
     reason="Docker daemon not available",
 )
 def test_matlab_warm_container_rss_within_budget() -> None:
-    """A ready MATLAB worker must fit the RAM budget auto-sizing assumes."""
+    """A ready MATLAB worker must fit the RAM budget auto-sizing assumes.
+
+    The upper bound is the point of this test; the floor only catches a
+    near-zero (bogus) reading.
+    """
     wav = example_wav_path()
     with MatlabWorkerRunner(
         image=DEFAULT_MATLAB_IMAGE, show_progress=False
@@ -141,7 +145,8 @@ def test_octave_warm_container_rss_within_budget() -> None:
     """Peak Octave memory during a run must fit the per-worker RSS budget.
 
     Octave exits after each ``docker exec``, so we sample stats while the
-    analysis is in flight rather than after it returns.
+    analysis is in flight rather than after it returns. Polling can miss a
+    brief peak, so the floor is loose; the upper bound is the real assertion.
     """
     import threading
     import time
