@@ -110,10 +110,33 @@ class Leman2000Result:
 FILE_COLUMNS = [
     "file_id",
     "input_file",
+    "status",
     "audio_length_sec",
     "num_channels",
     "sample_rate",
 ]
+
+
+@dataclass(frozen=True)
+class Leman2000BatchFailure:
+    """Failure information for one file in a batch.
+
+    Parameters
+    ----------
+    file_id :
+        One-based position of the file in the batch input.
+    input_file :
+        Resolved path to the input file.
+    error_type :
+        Name of the exception class raised while processing the file.
+    message :
+        Exception message.
+    """
+
+    file_id: int
+    input_file: str
+    error_type: str
+    message: str
 
 
 @dataclass(frozen=True, eq=False)
@@ -126,7 +149,8 @@ class Leman2000BatchResult:
         Number of warm workers used for the batch.
     files :
         One row per input file. Columns: ``file_id``, ``input_file``,
-        ``audio_length_sec``, ``num_channels``, ``sample_rate``.
+        ``status``, ``audio_length_sec``, ``num_channels``, ``sample_rate``.
+        Metadata values are missing for files that failed.
     local_global_comparison :
         Running correlations for all files, with ``file_id`` and
         ``input_file`` columns prepended.
@@ -138,14 +162,18 @@ class Leman2000BatchResult:
         shares one ``windows`` argument, so its output is all-or-nothing).
     results :
         Per-file :class:`Leman2000Result` values in input order (escape hatch
-        for ``keep_*`` payloads).
+        for ``keep_*`` payloads). A failed file has ``None`` in its original
+        position.
+    failures :
+        Structured details for failed files, ordered by input position.
     """
 
     workers: int
     files: pd.DataFrame
     local_global_comparison: pd.DataFrame
     windowed_local_global_comparison: pd.DataFrame | None = None
-    results: tuple[Leman2000Result, ...] = ()
+    results: tuple[Leman2000Result | None, ...] = ()
+    failures: tuple[Leman2000BatchFailure, ...] = ()
 
     def __post_init__(self) -> None:
         """Detach mutable output objects from caller-owned inputs."""
@@ -162,6 +190,7 @@ class Leman2000BatchResult:
                 _copy_dataframe(self.windowed_local_global_comparison),
             )
         object.__setattr__(self, "results", tuple(self.results))
+        object.__setattr__(self, "failures", tuple(self.failures))
 
     def __repr__(self) -> str:
         """Return a compact summary that avoids dumping large payloads."""
@@ -178,15 +207,17 @@ class Leman2000BatchResult:
             "local_global_comparison="
             f"DataFrame(shape={tuple(self.local_global_comparison.shape)}), "
             f"windowed_local_global_comparison={windowed_summary}, "
-            f"results=({len(self.results)} results))"
+            f"results=({len(self.results)} results), "
+            f"failures=({len(self.failures)} failures))"
         )
 
 
 def combine_results(
     input_files: Sequence[str | Path],
-    results: Sequence[Leman2000Result],
+    results: Sequence[Leman2000Result | None],
     *,
     workers: int,
+    errors: Sequence[BaseException | None] | None = None,
 ) -> Leman2000BatchResult:
     """Stack per-file results into a :class:`Leman2000BatchResult`.
 
@@ -195,9 +226,12 @@ def combine_results(
     input_files :
         Input paths in the same order as ``results``.
     results :
-        Per-file model outputs.
+        Per-file model outputs. Failed files are represented by ``None``.
     workers :
         Worker count to record on the batch result.
+    errors :
+        Exceptions aligned with ``input_files`` and ``results``. Required for
+        each failed result and omitted for successful results.
 
     Returns
     -------
@@ -212,19 +246,58 @@ def combine_results(
             "input_files and results must have the same length, got "
             f"{len(input_files)} and {len(results)}"
         )
+    if errors is None:
+        errors = [None] * len(results)
+    if len(errors) != len(results):
+        raise ValueError(
+            "errors and results must have the same length, got "
+            f"{len(errors)} and {len(results)}"
+        )
 
     file_rows: list[dict[str, Any]] = []
     local_frames: list[pd.DataFrame] = []
     windowed_frames: list[pd.DataFrame] = []
+    failures: list[Leman2000BatchFailure] = []
     any_windowed = False
 
-    for index, (path, result) in enumerate(zip(input_files, results, strict=True)):
+    for index, (path, result, error) in enumerate(
+        zip(input_files, results, errors, strict=True)
+    ):
         file_id = index + 1
         resolved = str(Path(path).expanduser().resolve())
+        if (result is None) == (error is None):
+            raise ValueError(
+                "each file must have exactly one result or error; "
+                f"file_id {file_id} has result={result is not None} and "
+                f"error={error is not None}"
+            )
+        if result is None:
+            assert error is not None
+            file_rows.append(
+                {
+                    "file_id": file_id,
+                    "input_file": resolved,
+                    "status": "error",
+                    "audio_length_sec": None,
+                    "num_channels": None,
+                    "sample_rate": None,
+                }
+            )
+            failures.append(
+                Leman2000BatchFailure(
+                    file_id=file_id,
+                    input_file=resolved,
+                    error_type=type(error).__name__,
+                    message=str(error),
+                )
+            )
+            continue
+
         file_rows.append(
             {
                 "file_id": file_id,
                 "input_file": resolved,
+                "status": "ok",
                 "audio_length_sec": result.audio_length_sec,
                 "num_channels": result.num_channels,
                 "sample_rate": result.sample_rate,
@@ -283,4 +356,5 @@ def combine_results(
         local_global_comparison=local_global,
         windowed_local_global_comparison=windowed_local_global,
         results=tuple(results),
+        failures=tuple(failures),
     )

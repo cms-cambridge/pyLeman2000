@@ -103,6 +103,13 @@ batch.local_global_comparison.head()
 `batch.results` still holds per-file `Leman2000Result` objects when you need
 `keep_*` payloads.
 
+By default, an error in any file stops the batch. Pass
+`continue_on_error=True` to finish the remaining files instead. The failed
+file keeps its input-aligned position as `None` in `batch.results`, and
+`batch.failures` records its file ID, path, exception type, and message.
+`batch.files` contains every input with an `ok` or `error` status; aggregate
+correlation tables contain successful files and retain their original file IDs.
+
 Extra workers only pay off once each has enough audio to offset the ~5 s
 MATLAB worker startup, so short MATLAB files stay sequential by default.
 Octave starts for every file and parallelizes even short batches, but its
