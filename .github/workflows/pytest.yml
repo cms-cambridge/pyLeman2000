@@ -121,5 +121,17 @@ jobs:
           docker pull "$IMAGE"
           echo "Using ${IMAGE}"
 
+      - name: Pull Octave model image (for backend parity)
+        run: |
+          set -euo pipefail
+          IMAGE="$(python -c 'from pyleman2000 import DEFAULT_IMAGE; print(DEFAULT_IMAGE)')"
+          if docker pull "$IMAGE"; then
+            echo "Using pulled image ${IMAGE}"
+          else
+            echo "GHCR image not available yet; building native image and retagging"
+            ./scripts/build_octave_image.sh
+            docker tag pyleman2000-octave:dev "$IMAGE"
+          fi
+
       - name: Run MATLAB snapshot smoke
         run: pytest -v -m matlab
