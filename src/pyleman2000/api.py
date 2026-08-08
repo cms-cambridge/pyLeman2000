@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
+import sys
 from collections.abc import Callable, Mapping, Sequence
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from queue import Queue
-from typing import Literal, cast
+from typing import Literal, TextIO, cast
 
 import docker
 import numpy as np
@@ -28,8 +29,17 @@ from pyleman2000.matlab_worker import (
     MatlabWorkerRunner,
     run_model_matlab,
 )
-from pyleman2000.progress import BatchProgress
-from pyleman2000.types import Leman2000BatchResult, Leman2000Result, combine_results
+from pyleman2000.progress import (
+    BatchProgress,
+    BatchProgressReporter,
+    ProgressOption,
+)
+from pyleman2000.types import (
+    Leman2000BatchFailure,
+    Leman2000BatchResult,
+    Leman2000Result,
+    combine_results,
+)
 from pyleman2000.worker_sizing import choose_worker_count, wav_durations_sec
 
 BackendName = Literal["octave", "matlab"]
@@ -96,6 +106,61 @@ def _normalize_input_files(
             "Wrap it in a list, e.g. [input_file]."
         )
     return list(input_files)
+
+
+def _resolve_batch_progress(
+    progress: ProgressOption,
+) -> BatchProgressReporter | None:
+    """Return the reporter selected by a public batch progress option."""
+    if progress is True:
+        return BatchProgress()
+    if progress is False:
+        return None
+    if isinstance(progress, BatchProgressReporter):
+        return progress
+    raise TypeError(
+        "progress must be True, False, or a BatchProgressReporter"
+    )
+
+
+def _close_progress_preserving_error(progress: BatchProgressReporter) -> None:
+    """Close a reporter without masking an in-flight exception.
+
+    When an exception is already propagating (for example a failed analysis),
+    a failure inside ``close`` is suppressed so the primary error reaches the
+    caller. With no in-flight exception, a close error propagates normally.
+    """
+    primary = sys.exc_info()[1]
+    try:
+        progress.close()
+    except BaseException:
+        if primary is None:
+            raise
+
+
+def _print_batch_failures(
+    failures: Sequence[Leman2000BatchFailure],
+    *,
+    stream: TextIO | None = None,
+) -> None:
+    """Print a summary of failed files so a completed count hides nothing.
+
+    A continued batch draws a ``N/N`` progress line even when some files
+    failed, which reads like full success. Emitting the failures keeps that
+    outcome visible without the caller having to inspect ``batch.failures``.
+    """
+    if not failures:
+        return
+    out = stream if stream is not None else sys.stderr
+    total = len(failures)
+    noun = "file" if total == 1 else "files"
+    print(f"Leman (2000) batch: {total} {noun} failed", file=out)
+    for failure in failures:
+        print(
+            f"  file_id {failure.file_id} ({failure.input_file}): "
+            f"{failure.error_type}: {failure.message}",
+            file=out,
+        )
 
 
 def _prepare_analysis_args(
@@ -303,7 +368,7 @@ def leman2000_batch(
     docker_image: str | None = None,
     docker_client: docker.DockerClient | None = None,
     docker_timeout_sec: float | None = DEFAULT_TIMEOUT_SEC,
-    show_progress: bool = True,
+    progress: ProgressOption = True,
     continue_on_error: bool = False,
 ) -> Leman2000BatchResult:
     """Analyse many WAV files with a warm worker pool.
@@ -314,9 +379,8 @@ def leman2000_batch(
     :func:`pyleman2000.worker_sizing.choose_worker_count`), overridable via
     ``workers`` or the ``PYLEMAN2000_WORKERS`` environment variable.
 
-    When ``show_progress`` is True, a batch progress line is shown and
-    per-container run progress is suppressed to avoid overlapping status
-    output.
+    Batch progress replaces per-container run progress to avoid overlapping
+    status output.
 
     Parameters
     ----------
@@ -348,8 +412,10 @@ def leman2000_batch(
         Optional Docker SDK client.
     docker_timeout_sec :
         Maximum container runtime in seconds per analysis.
-    show_progress :
-        If True, report batch progress on standard error.
+    progress :
+        If True, report batch progress on standard error. If False, disable
+        batch progress. A custom :class:`BatchProgressReporter` can be supplied
+        to integrate with another progress UI.
     continue_on_error :
         If True, process all files after individual failures. Failed files
         retain their positions in ``batch.results`` as ``None`` and are
@@ -375,9 +441,7 @@ def leman2000_batch(
         workers=workers,
         backend=backend,
     )
-    # Batch progress replaces noisy per-session run progress.
-    session_progress = False
-    progress = BatchProgress() if show_progress else None
+    reporter = _resolve_batch_progress(progress)
 
     with Leman2000Pool(
         workers=n_workers,
@@ -385,7 +449,7 @@ def leman2000_batch(
         docker_image=docker_image,
         docker_client=docker_client,
         docker_timeout_sec=docker_timeout_sec,
-        show_progress=session_progress,
+        show_progress=False,
     ) as pool:
         if continue_on_error:
             results, errors = pool.map_with_errors(
@@ -396,7 +460,7 @@ def leman2000_batch(
                 windowing_function=windowing_function,
                 keep_auditory_nerve=keep_auditory_nerve,
                 keep_periodicity_pitch=keep_periodicity_pitch,
-                progress=progress,
+                progress=reporter,
             )
         else:
             successful = pool.map(
@@ -407,11 +471,15 @@ def leman2000_batch(
                 windowing_function=windowing_function,
                 keep_auditory_nerve=keep_auditory_nerve,
                 keep_periodicity_pitch=keep_periodicity_pitch,
-                progress=progress,
+                progress=reporter,
             )
             results = cast(list[Leman2000Result | None], successful)
             errors = [None] * len(successful)
-    return combine_results(files, results, workers=n_workers, errors=errors)
+
+    batch = combine_results(files, results, workers=n_workers, errors=errors)
+    if reporter is not None and batch.failures:
+        _print_batch_failures(batch.failures)
+    return batch
 
 
 class Leman2000Session:
@@ -601,7 +669,7 @@ class Leman2000Pool:
         keep_auditory_nerve: bool = False,
         keep_periodicity_pitch: bool = False,
         *,
-        progress: BatchProgress | None = None,
+        progress: BatchProgressReporter | None = None,
     ) -> list[Leman2000Result]:
         """Analyse many WAV files in parallel.
 
@@ -660,7 +728,7 @@ class Leman2000Pool:
         keep_auditory_nerve: bool = False,
         keep_periodicity_pitch: bool = False,
         *,
-        progress: BatchProgress | None = None,
+        progress: BatchProgressReporter | None = None,
     ) -> tuple[list[Leman2000Result | None], list[BaseException | None]]:
         """Analyse all files and return input-aligned results and errors.
 
@@ -699,7 +767,7 @@ class Leman2000Pool:
         keep_auditory_nerve: bool = False,
         keep_periodicity_pitch: bool = False,
         *,
-        progress: BatchProgress | None = None,
+        progress: BatchProgressReporter | None = None,
         continue_on_error: bool,
     ) -> tuple[list[Leman2000Result | None], list[BaseException | None]]:
         """Map files using fail-fast or input-aligned error collection."""
@@ -774,6 +842,6 @@ class Leman2000Pool:
                 raise
             finally:
                 if progress is not None:
-                    progress.close()
+                    _close_progress_preserving_error(progress)
 
         return results, errors

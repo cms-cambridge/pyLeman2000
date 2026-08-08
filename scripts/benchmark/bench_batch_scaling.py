@@ -97,7 +97,7 @@ def _time_batch(
         global_decay_sec=GLOBAL_DECAY,
         workers=workers,
         backend=backend,
-        show_progress=False,
+        progress=False,
     )
     return time.perf_counter() - t0
 

@@ -101,6 +101,45 @@ def test_pool_map_failure_cleans_up_and_reports_partial_progress(
     assert "4/4 files" not in stream.getvalue()
 
 
+class _ClosingProgress:
+    """Reporter whose ``close`` always raises, to test cleanup handling."""
+
+    def start(self, n_files: int, n_workers: int) -> None:
+        pass
+
+    def update(self, completed: int) -> None:
+        pass
+
+    def close(self) -> None:
+        raise RuntimeError("close failed")
+
+
+def test_pool_map_close_error_does_not_mask_primary(
+    raw_result: dict, tmp_path: Path
+) -> None:
+    wavs = _make_wavs(tmp_path, 2)
+    runner = MagicMock()
+    runner.run.side_effect = RuntimeError("worker blew up")
+
+    with patch("pyleman2000.api.MatlabWorkerRunner", return_value=runner):
+        with Leman2000Pool(workers=1, show_progress=False) as pool:
+            with pytest.raises(RuntimeError, match="worker blew up"):
+                pool.map(wavs, 0.1, 1.0, progress=_ClosingProgress())
+
+
+def test_pool_map_close_error_propagates_on_success(
+    raw_result: dict, tmp_path: Path
+) -> None:
+    wavs = _make_wavs(tmp_path, 1)
+    runner = MagicMock()
+    runner.run.return_value = raw_result
+
+    with patch("pyleman2000.api.MatlabWorkerRunner", return_value=runner):
+        with Leman2000Pool(workers=1, show_progress=False) as pool:
+            with pytest.raises(RuntimeError, match="close failed"):
+                pool.map(wavs, 0.1, 1.0, progress=_ClosingProgress())
+
+
 def test_pool_map_empty_returns_empty() -> None:
     with patch("pyleman2000.api.MatlabWorkerRunner") as ctor:
         with Leman2000Pool(workers=2, show_progress=False) as pool:

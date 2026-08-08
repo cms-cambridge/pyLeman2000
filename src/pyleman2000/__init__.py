@@ -15,6 +15,7 @@ from pyleman2000.docker_runner import (
     Leman2000WorkerError,
 )
 from pyleman2000.matlab_worker import DEFAULT_MATLAB_IMAGE
+from pyleman2000.progress import BatchProgressReporter, ProgressOption
 from pyleman2000.types import (
     Leman2000BatchFailure,
     Leman2000BatchResult,
@@ -24,6 +25,7 @@ from pyleman2000.types import (
 __all__ = [
     "DEFAULT_IMAGE",
     "DEFAULT_MATLAB_IMAGE",
+    "BatchProgressReporter",
     "example_wav_path",
     "leman2000",
     "leman2000_batch",
@@ -34,6 +36,7 @@ __all__ = [
     "Leman2000Result",
     "Leman2000Session",
     "Leman2000WorkerError",
+    "ProgressOption",
 ]
 
 try:

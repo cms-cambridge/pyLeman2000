@@ -100,6 +100,10 @@ batch.files
 batch.local_global_comparison.head()
 ```
 
+Batch progress is shown by default. Pass `progress=False` to disable it, or
+provide an object implementing `start(n_files, n_workers)`,
+`update(completed)`, and `close()` to bridge progress into another UI.
+
 `batch.files` always has one row per input and an `ok` or `error` status.
 Its audio metadata columns use pandas nullable numeric dtypes, so their schema
 stays stable when metadata is unavailable. `batch.results` is input-aligned
@@ -110,7 +114,9 @@ By default, an error in any file stops the batch. Pass
 file keeps its input-aligned position as `None` in `batch.results`, and
 `batch.failures` records its file ID, path, exception type, message, and
 original exception object. Aggregate correlation tables contain successful
-files and retain their original file IDs.
+files and retain their original file IDs. When batch progress is enabled, a
+continued batch also prints a short failure summary to standard error, so the
+completed `N/N` count does not conceal errors.
 
 For lower-level pool use, `Leman2000Pool.map()` remains fail-fast, while
 `Leman2000Pool.map_with_errors()` processes every file and returns aligned
@@ -182,7 +188,7 @@ correlations typically agree with archived MATLAB/R snapshots to about
 `3e-6` (not bit-identical); feed 22.05 kHz audio for closer
 cross-implementation agreement.
 
-Silence pull/run progress with `show_progress=False`.
+Silence single-analysis pull/run progress with `show_progress=False`.
 
 ### Building images locally
 
