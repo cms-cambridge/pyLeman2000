@@ -131,8 +131,11 @@ class Leman2000BatchResult:
         Running correlations for all files, with ``file_id`` and
         ``input_file`` columns prepended.
     windowed_local_global_comparison :
-        Windowed averages for all files when windows were requested, with
-        ``file_id`` and ``input_file`` columns prepended.
+        Windowed averages, with ``file_id`` and ``input_file`` columns
+        prepended, or ``None`` when no file was windowed. Only files that were
+        windowed contribute rows, so if windows were requested for some files
+        but not others this table covers just that subset (``leman2000_batch``
+        shares one ``windows`` argument, so its output is all-or-nothing).
     results :
         Per-file :class:`Leman2000Result` values in input order (escape hatch
         for ``keep_*`` payloads).
@@ -199,7 +202,10 @@ def combine_results(
     Returns
     -------
     Leman2000BatchResult
-        Combined tables plus the original per-file results.
+        Combined tables plus the original per-file results. The windowed table
+        includes only files whose result carried windows; if some results are
+        windowed and others are not, the missing files simply have no windowed
+        rows (no error is raised).
     """
     if len(input_files) != len(results):
         raise ValueError(
