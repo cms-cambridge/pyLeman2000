@@ -114,7 +114,9 @@ By default, an error in any file stops the batch. Pass
 file keeps its input-aligned position as `None` in `batch.results`, and
 `batch.failures` records its file ID, path, exception type, message, and
 original exception object. Aggregate correlation tables contain successful
-files and retain their original file IDs.
+files and retain their original file IDs. When batch progress is enabled, a
+continued batch also prints a short failure summary to standard error, so the
+completed `N/N` count does not conceal errors.
 
 For lower-level pool use, `Leman2000Pool.map()` remains fail-fast, while
 `Leman2000Pool.map_with_errors()` processes every file and returns aligned

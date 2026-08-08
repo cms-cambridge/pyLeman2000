@@ -414,3 +414,57 @@ def test_leman2000_batch_rejects_none_progress(tmp_path: Path) -> None:
     with patch("pyleman2000.api.choose_worker_count", return_value=1):
         with pytest.raises(TypeError, match="progress must be"):
             leman2000_batch(wavs, 0.1, 1.0, progress=None)  # type: ignore[arg-type]
+
+
+def test_leman2000_batch_prints_failure_summary_when_continuing(
+    raw_result: dict, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    wavs = _make_wavs(tmp_path, 3)
+    runner = MagicMock()
+
+    def run(*, input_file, **_kwargs):
+        if Path(input_file).name.endswith("1.wav"):
+            raise RuntimeError("kaboom")
+        return raw_result
+
+    runner.run.side_effect = run
+    reporter = RecordingProgress()
+
+    with patch("pyleman2000.api.MatlabWorkerRunner", return_value=runner):
+        with patch("pyleman2000.api.choose_worker_count", return_value=1):
+            batch = leman2000_batch(
+                wavs,
+                0.1,
+                1.0,
+                progress=reporter,
+                continue_on_error=True,
+            )
+
+    assert len(batch.failures) == 1
+    err = capsys.readouterr().err
+    assert "Leman (2000) batch: 1 file failed" in err
+    assert "file_id 2" in err
+    assert "RuntimeError: kaboom" in err
+
+
+def test_leman2000_batch_no_failure_summary_when_disabled(
+    raw_result: dict, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    wavs = _make_wavs(tmp_path, 2)
+    runner = MagicMock()
+    runner.run.side_effect = [RuntimeError("kaboom"), raw_result]
+
+    with patch("pyleman2000.api.MatlabWorkerRunner", return_value=runner):
+        with patch("pyleman2000.api.choose_worker_count", return_value=1):
+            batch = leman2000_batch(
+                wavs,
+                0.1,
+                1.0,
+                progress=False,
+                continue_on_error=True,
+            )
+
+    assert len(batch.failures) == 1
+    captured = capsys.readouterr()
+    assert captured.err == ""
+    assert captured.out == ""

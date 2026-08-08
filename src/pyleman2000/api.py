@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
+import sys
 from collections.abc import Callable, Mapping, Sequence
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from queue import Queue
-from typing import Literal, cast
+from typing import Literal, TextIO, cast
 
 import docker
 import numpy as np
@@ -33,7 +34,12 @@ from pyleman2000.progress import (
     BatchProgressReporter,
     ProgressOption,
 )
-from pyleman2000.types import Leman2000BatchResult, Leman2000Result, combine_results
+from pyleman2000.types import (
+    Leman2000BatchFailure,
+    Leman2000BatchResult,
+    Leman2000Result,
+    combine_results,
+)
 from pyleman2000.worker_sizing import choose_worker_count, wav_durations_sec
 
 BackendName = Literal["octave", "matlab"]
@@ -115,6 +121,46 @@ def _resolve_batch_progress(
     raise TypeError(
         "progress must be True, False, or a BatchProgressReporter"
     )
+
+
+def _close_progress_preserving_error(progress: BatchProgressReporter) -> None:
+    """Close a reporter without masking an in-flight exception.
+
+    When an exception is already propagating (for example a failed analysis),
+    a failure inside ``close`` is suppressed so the primary error reaches the
+    caller. With no in-flight exception, a close error propagates normally.
+    """
+    primary = sys.exc_info()[1]
+    try:
+        progress.close()
+    except BaseException:
+        if primary is None:
+            raise
+
+
+def _print_batch_failures(
+    failures: Sequence[Leman2000BatchFailure],
+    *,
+    stream: TextIO | None = None,
+) -> None:
+    """Print a summary of failed files so a completed count hides nothing.
+
+    A continued batch draws a ``N/N`` progress line even when some files
+    failed, which reads like full success. Emitting the failures keeps that
+    outcome visible without the caller having to inspect ``batch.failures``.
+    """
+    if not failures:
+        return
+    out = stream if stream is not None else sys.stderr
+    total = len(failures)
+    noun = "file" if total == 1 else "files"
+    print(f"Leman (2000) batch: {total} {noun} failed", file=out)
+    for failure in failures:
+        print(
+            f"  file_id {failure.file_id} ({failure.input_file}): "
+            f"{failure.error_type}: {failure.message}",
+            file=out,
+        )
 
 
 def _prepare_analysis_args(
@@ -429,7 +475,11 @@ def leman2000_batch(
             )
             results = cast(list[Leman2000Result | None], successful)
             errors = [None] * len(successful)
-    return combine_results(files, results, workers=n_workers, errors=errors)
+
+    batch = combine_results(files, results, workers=n_workers, errors=errors)
+    if reporter is not None and batch.failures:
+        _print_batch_failures(batch.failures)
+    return batch
 
 
 class Leman2000Session:
@@ -792,6 +842,6 @@ class Leman2000Pool:
                 raise
             finally:
                 if progress is not None:
-                    progress.close()
+                    _close_progress_preserving_error(progress)
 
         return results, errors
