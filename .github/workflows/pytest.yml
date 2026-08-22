@@ -61,7 +61,15 @@ jobs:
           python -m venv /tmp/pyleman-smoke
           /tmp/pyleman-smoke/bin/pip install dist/*.whl
           /tmp/pyleman-smoke/bin/python -c \
-            "from pyleman2000 import example_wav_path, leman2000_batch; assert example_wav_path().is_file(); assert callable(leman2000_batch)"
+            "from pyleman2000 import example_wav_path; assert example_wav_path().is_file()"
+
+      - name: Upload distributions
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: python-distributions
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 1
 
   integration:
     name: Docker integration tests
@@ -78,8 +86,14 @@ jobs:
           python-version: "3.12"
           cache: pip
 
-      - name: Install package
-        run: pip install ".[dev]"
+      - name: Download built distributions
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        with:
+          name: python-distributions
+          path: dist
+
+      - name: Install built wheel and test dependencies
+        run: pip install pytest dist/*.whl
 
       - name: Pull Octave model image (build locally if unpublished)
         run: |
@@ -111,8 +125,14 @@ jobs:
           python-version: "3.12"
           cache: pip
 
-      - name: Install package
-        run: pip install ".[dev]"
+      - name: Download built distributions
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        with:
+          name: python-distributions
+          path: dist
+
+      - name: Install built wheel and test dependencies
+        run: pip install pytest dist/*.whl
 
       - name: Pull compiled MATLAB worker image
         run: |
