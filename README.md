@@ -74,7 +74,7 @@ obtain all pairwise results. See Bigand et al. (2014) for an example.
 
 `local_global_comparison` is the running correlation between local and global
 tonal images. Higher values mean the short-term and longer-term
-representationsations are more similar at that moment. Optional `windows` summarise
+representations are more similar at that moment. Optional `windows` summarise
 those correlations over closed time intervals (for example chord or phrase
 spans). Unlike `leman2000R`'s half-open `[start, end)`, both endpoints are
 included here.
@@ -160,7 +160,7 @@ python3 -m pip install -e ".[dev]"
 From a specific Git tag:
 
 ```bash
-python3 -m pip install git+https://github.com/cms-cambridge/pyLeman2000.git@v0.2.0
+python3 -m pip install git+https://github.com/cms-cambridge/pyLeman2000.git@v0.3.0
 ```
 
 Optional pre-pull of the default MATLAB image:

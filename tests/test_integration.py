@@ -6,7 +6,7 @@ import math
 
 import pytest
 
-from pyleman2000 import example_wav_path, leman2000
+from pyleman2000 import example_wav_path, leman2000, leman2000_batch
 from pyleman2000.docker_runner import Leman2000DockerError
 from tests.docker_support import docker_daemon_available
 
@@ -48,3 +48,24 @@ def test_leman2000_end_to_end() -> None:
     assert (
         first_rows["running_correlation"].apply(lambda x: math.isclose(x, 1.0, abs_tol=1e-12))
     ).all()
+
+
+def test_leman2000_batch_end_to_end() -> None:
+    path = example_wav_path()
+    try:
+        batch = leman2000_batch(
+            [path, path],
+            local_decay_sec=[0.1, 0.2],
+            global_decay_sec=1.0,
+            workers=1,
+            backend="octave",
+            progress=False,
+        )
+    except Leman2000DockerError as exc:
+        pytest.fail(f"Octave batch backend failed: {exc}")
+
+    assert len(batch.files) == 2
+    assert batch.files["status"].tolist() == ["ok", "ok"]
+    assert len(batch.results) == 2
+    assert all(result is not None for result in batch.results)
+    assert set(batch.local_global_comparison["file_id"]) == {1, 2}
