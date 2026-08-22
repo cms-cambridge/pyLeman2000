@@ -61,7 +61,7 @@ jobs:
           python -m venv /tmp/pyleman-smoke
           /tmp/pyleman-smoke/bin/pip install dist/*.whl
           /tmp/pyleman-smoke/bin/python -c \
-            "from pyleman2000 import example_wav_path; assert example_wav_path().is_file()"
+            "from pyleman2000 import example_wav_path, leman2000_batch; assert example_wav_path().is_file(); assert callable(leman2000_batch)"
 
   integration:
     name: Docker integration tests
